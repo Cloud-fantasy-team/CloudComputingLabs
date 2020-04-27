@@ -1,3 +1,6 @@
+/// server.h
+/// Copyright 2020 Cloud-fantasy team
+
 #include <cstdlib>
 #include "server.h"
 #include "reporter.h"

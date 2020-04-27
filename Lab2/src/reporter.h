@@ -1,3 +1,6 @@
+/// reporter.h
+/// Copyright 2020 Cloud-fantasy team
+
 #ifndef REPORTER_H
 #define REPORTER_H
 
@@ -5,13 +8,13 @@
 #include <iostream>
 #include <string>
 
-#define report(f)  simple_http_server::Reporter::log((f), __LINE__, __FILE__)
+#define report(f)  simple_http_server::Reporter::log(ReportSeverity##f, __LINE__, __FILE__)
 
 enum ReportSeverity
 {
-    ERROR,
-    INFO,
-    WARN
+    ReportSeverityERROR,
+    ReportSeverityINFO,
+    ReportSeverityWARN
 };
 
 namespace simple_http_server

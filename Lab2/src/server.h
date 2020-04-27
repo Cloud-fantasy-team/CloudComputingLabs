@@ -1,3 +1,5 @@
+/// server.h
+/// Copyright 2020 Cloud-fantasy team
 #ifndef SERVER_H
 #define SERVER_H
 
@@ -9,6 +11,7 @@
 namespace simple_http_server
 {
 
+/// HTTP server class.
 class Server
 {
 public:

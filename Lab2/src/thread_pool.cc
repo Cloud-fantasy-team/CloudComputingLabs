@@ -1,3 +1,6 @@
+/// thread_pool.cc
+/// Copyright 2020 Cloud-fantasy team
+
 #include "server.h"
 #include "thread_pool.h"
 

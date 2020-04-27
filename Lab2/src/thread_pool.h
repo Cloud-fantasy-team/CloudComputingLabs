@@ -1,3 +1,6 @@
+/// thread_pool.h
+/// Copyright 2020 Cloud-fantasy team
+
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H
 

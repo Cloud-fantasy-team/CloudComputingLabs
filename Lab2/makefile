@@ -4,12 +4,18 @@ LDFLAGS=-lpthread
 
 SRC=$(shell find ./src -type f -name *.cc)
 HEADERS=$(shell find ./src -type f -name *.h)
-OBJS=$(SRC:.cc=.o)
+OBJS := $(patsubst ./src/%.cc, ./src/%.o, $(SRC))
 
 TARGET=httpserver
 
 $(TARGET): $(OBJS) $(HEADERS)
 	$(CC) -o $(TARGET) $(OBJS) $(LDFLAGS)
+
+$(OBJS): ./src/%.o: ./src/%.cc ./src/%.h
+	$(CC) -c $(CXXFLAGS) -o $@ $<
+
+# Empty rule.
+src/main.h:
 
 clean:
 	rm -rf $(OBJS) $(TARGET)

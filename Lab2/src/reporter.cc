@@ -1,3 +1,6 @@
+/// reporter.cc
+/// Copyright 2020 Cloud-fantasy team
+
 #include <cassert>
 #include "reporter.h"
 
@@ -21,9 +24,9 @@ std::ostream &Reporter::file(const int severity)
 {
     switch (severity)
     {
-    case ERROR:   return err_;
-    case INFO:    return info_;
-    case WARN:    return warn_;
+    case ReportSeverityERROR:   return err_;
+    case ReportSeverityINFO:    return info_;
+    case ReportSeverityWARN:    return warn_;
     default:
         assert(0);
     }
