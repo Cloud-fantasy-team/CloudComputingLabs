@@ -1,18 +1,25 @@
 CC=g++
 CXXFLAGS=-std=c++14 -Wall -Werror
 
-sudoku_basic_test: sudoku_basic_test.o sudoku_basic.o
-	$(CC) $(CXXFLAGS) sudoku_basic_test.o sudoku_basic.o -o sudoku_basic_test
+all: test sudoku_solve
+
+test: sudoku_basic_test thread_pool_test
+	./thread_pool_test
 	./sudoku_basic_test
 
-thread_pool_test: src/thread_pool_test.cc src/thread_pool.h
-	@ printf "Compiling and testing thread pool...\n"
-	@ $(CC) $(CXXFLAGS) src/thread_pool_test.cc -lpthread -o thread_pool_test
-	./thread_pool_test
+sudoku_solve: main.o
+	@ $(CC) $(CXXFLAGS) -o $@ $^
 
-%.o : src/%.cc
-	$(CC) -c $<
+sudoku_basic_test: sudoku_basic_test.o
+	@ $(CC) $(CXXFLAGS) -o $@ $^
+
+thread_pool_test: thread_pool_test.o
+	@ $(CC) $(CXXFLAGS) $^ -lpthread -o $@
+
+%.o: src/%.cc
+	@ $(CC) $(CXXFLAGS) -c $<
 
 clean:
-	@ rm -rf ./*_test
 	@ rm -rf ./*.o
+	@ rm -rf ./*test
+	@ rm -rf ./sudoku_solve

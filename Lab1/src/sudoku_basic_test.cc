@@ -3,28 +3,48 @@
 #include <vector>
 #include <iostream>
 
-#include "common.h"
+#include "sudoku_basic.h"
 
-bool solve_sudoku_basic(std::vector<int> &board, int r, int c);
-
-std::vector<int> read_input(const std::string &board_str)
+std::vector<int> read_input(const std::string &str)
 {
-    std::vector<int> board;
-    board.reserve(kCol * kRow);
-    
-    for (auto d : board_str)
-    {
-        board.push_back(d - '0');
-    }
+    std::vector<int> ret;
+    ret.reserve(81);
 
-    return board;
+    for (auto ch : str)
+    {
+        ret.push_back(ch - '0');
+    }
+    return ret;
 }
 
 void simple()
 {
-    auto board = read_input("000000010400000000020000000000050407008000300001090000300400200050100000000806000");
+    int valid[DIM][DIM] = {
+        {7, 2, 3, 0, 0, 0, 1, 5, 9},
+        {6, 0, 0, 3, 0, 2, 0, 0, 8},
+        {8, 0, 0, 0, 1, 0, 0, 0, 2},
+        {0, 7, 0, 6, 5, 4, 0, 2, 0},
+        {0, 0, 4, 2, 0, 7, 3, 0, 0},
+        {0, 5, 0, 9, 3, 1, 0, 4, 0},
+        {5, 0, 0, 0, 7, 0, 0, 0, 3},
+        {4, 0, 0, 1, 0, 3, 0, 0, 6},
+        {9, 3, 2, 0, 0, 0, 7, 1, 4}
+    };
 
-    assert(solve_sudoku_basic(board, 0, 0));
+    int invalid[DIM][DIM] = {
+        {7, 2, 3, 0, 0, 5, 1, 5, 9},
+        {6, 0, 0, 3, 0, 2, 0, 0, 8},
+        {8, 0, 0, 0, 1, 0, 0, 0, 2},
+        {0, 7, 0, 6, 5, 4, 0, 2, 0},
+        {0, 0, 4, 2, 0, 7, 3, 0, 0},
+        {0, 5, 0, 9, 3, 1, 0, 4, 0},
+        {5, 0, 0, 0, 7, 0, 0, 0, 3},
+        {4, 0, 0, 1, 0, 3, 0, 0, 6},
+        {9, 3, 2, 0, 0, 0, 7, 1, 4}
+    };
+
+    assert(solve_sudoku_basic(valid));
+    assert(!solve_sudoku_basic(invalid));
 }
 
 int main()

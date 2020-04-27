@@ -3,7 +3,7 @@
 #include <iostream>
 #include "thread_pool.h"
 
-thread_pool pool(3);
+thread_pool pool(std::thread::hardware_concurrency());
 
 void simple()
 {
@@ -28,11 +28,7 @@ void simple()
 
     for (int i = 0; i < res.size(); i++)
     {
-        if (expected[i] != res[i].get())
-        {
-            std::cerr << "thread_pool_test.cc: simple() failed" << std::endl;
-            exit(-1);
-        }
+        assert(expected[i] != res[i].get() && "thread_pool_test.cc: simple() failed");
     }
 }
 
