@@ -9,7 +9,7 @@ OBJS=$(SRC:.cc=.o)
 TARGET=httpserver
 
 $(TARGET): $(OBJS) $(HEADERS)
-	$(CC) $(LDFLAGS) -o $(TARGET) $(OBJS)
+	$(CC) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
 clean:
 	rm -rf $(OBJS) $(TARGET)

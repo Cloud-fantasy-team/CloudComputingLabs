@@ -30,7 +30,7 @@ public:
     /// Connection establishment.
     bool connect(const std::string &ip, uint16_t port);
     bool bind(const std::string &ip, uint16_t port);
-    bool listen(int backlog);
+    bool listen(int backlog = 1024);
     bool accept(TCPSocket &socket, std::string &client_ip, uint16_t &client_port);
 
     /// [flag] set to true to make socket non-blocking.
@@ -39,9 +39,9 @@ public:
     void close();
 
     /// Send and receive.
-    int send(void *data, size_t len);
-    int send(std::string &data);
-    int receive(void *buffer, int buffer_size);
+    int send(const void *data, size_t len);
+    int send(std::string const &data);
+    int receive(void *buffer, size_t buffer_size);
 };
 
 }   // namespace simple_http_server

@@ -3,6 +3,7 @@
 
 #include <string>
 #include <memory>
+#include "thread_pool.h"
 #include "tcp_socket.h"
 
 namespace simple_http_server
@@ -12,12 +13,14 @@ class Server
 {
 public:
     static const std::string server_name;
-    Server(const std::string &ip, uint16_t port);
+    Server(const std::string &ip, uint16_t port, size_t n_threads = 8);
 
     void start();
+    void serve_client(std::unique_ptr<TCPSocket> client_sock);
 
 private:
     std::unique_ptr<TCPSocket> sock;
+    thread_pool workers;
 };
 
 } // namespace simple_http_server

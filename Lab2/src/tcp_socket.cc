@@ -1,9 +1,9 @@
 #include <iostream>
-
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <cstring>
 #include "tcp_socket.h"
 #include "reporter.h"
 
@@ -14,7 +14,11 @@ TCPSocket::TCPSocket()
 {
     socket_ = ::socket(AF_INET, SOCK_STREAM, 0);
     if (socket_ < 0)
-        report(ERROR) << "failed creating new socket" << std::endl;
+        report(ERROR) << strerror(errno) << std::endl;
+
+    // Prevent "Address in use".
+    int optval = 1;
+    ::setsockopt(socket_, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const void*>(&optval), sizeof(optval));
 }
 
 TCPSocket::~TCPSocket()
@@ -28,17 +32,16 @@ bool TCPSocket::connect(const std::string &ip, uint16_t port)
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
 
-    if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) != 1)
-        goto FAIL_CONNECT;
+    std::string func;
+    if ((inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) != 1) ||
+        (::connect(socket_, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0))
+    {
+        report(ERROR) << "failed connecting " << ip << ":" << port << " " << func << std::endl;
+        return false;
+    }
 
-    if (::connect(socket_, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0)
-        goto FAIL_CONNECT;
-
+    report(INFO) << "connecting to " << ip << ":" << port << std::endl;
     return true;
-
-  FAIL_CONNECT:
-    report(ERROR) << "failed connecting " << ip << ":" << port << std::endl;
-    return false;
 }
 
 bool TCPSocket::bind(const std::string &ip, uint16_t port)
@@ -47,22 +50,24 @@ bool TCPSocket::bind(const std::string &ip, uint16_t port)
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(port);
 
-    if (inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) != 1)
-        goto FAIL_CONNECT;
+    if ((inet_pton(AF_INET, ip.c_str(), &server_addr.sin_addr) != 1) ||
+        (::bind(socket_, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0))
+    {
+        report(ERROR) << "fail binding to " << ip << ":" << port << std::endl;
+        return false;
+    }
 
-    if (::bind(socket_, reinterpret_cast<struct sockaddr*>(&server_addr), sizeof(server_addr)) < 0)
-        goto FAIL_CONNECT;
-
+    report(INFO) << "bound to " << ip << ":" << port << std::endl;
     return true;
-  FAIL_CONNECT:
-    report(ERROR) << "failed binding on " << ip << ":" << port << std::endl;
-    return false;
 }
 
 bool TCPSocket::listen(int backlog)
 {
     if (::listen(socket_, backlog) == 0)
+    {
+        report(INFO) << "listening" << std::endl;
         return true;
+    }
 
     report(ERROR) << "failed listening on socket " << socket_ << std::endl;
     return false;
@@ -91,6 +96,8 @@ bool TCPSocket::accept(TCPSocket &sock, std::string &ip, uint16_t &port)
     ip.assign(client_ip);
     port = ntohs(client_addr.sin_port);
     sock.socket_ = sock_client;
+
+    report(INFO) << "accepting " << ip << ":" << port << std::endl;
     return true;
 }
 
@@ -116,6 +123,22 @@ bool TCPSocket::set_blocking(bool flag)
 
     return true;
     
+}
+
+int TCPSocket::send(const void *data, size_t len)
+{
+    return ::send(socket_, data, len, 0);
+}
+
+int TCPSocket::send(std::string const &data)
+{
+    return send(data.c_str(), data.length());
+}
+
+/// Retrive all we can get.
+int TCPSocket::receive(void *buffer, size_t buffer_size)
+{
+    return recv(socket_, buffer, buffer_size, 0);
 }
 
 bool TCPSocket::shutdown(int how)
