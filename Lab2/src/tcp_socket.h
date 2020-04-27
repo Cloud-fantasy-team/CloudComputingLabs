@@ -17,9 +17,11 @@ private:
     /// Underlying socket
     int socket_;
 
-    /// Avoid copy and assignment.
-    TCPSocket(const TCPSocket &);
-    void operator=(const TCPSocket&);
+    /// Disallow copy.
+    TCPSocket(const TCPSocket &) = delete;
+    TCPSocket(const TCPSocket&&) = delete;
+    void operator=(const TCPSocket&) = delete;
+    void operator=(const TCPSocket&&) = delete;
 
 public:
     TCPSocket();

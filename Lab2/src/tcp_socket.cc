@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include "tcp_socket.h"
+#include "reporter.h"
 
 namespace simple_http_server
 {
@@ -13,7 +14,7 @@ TCPSocket::TCPSocket()
 {
     socket_ = ::socket(AF_INET, SOCK_STREAM, 0);
     if (socket_ < 0)
-        std::cerr << "failed creating new socket" << std::endl;
+        report(ERROR) << "failed creating new socket" << std::endl;
 }
 
 TCPSocket::~TCPSocket()
@@ -36,7 +37,7 @@ bool TCPSocket::connect(const std::string &ip, uint16_t port)
     return true;
 
   FAIL_CONNECT:
-    std::cerr << "failed connecting " << ip << ":" << port << std::endl;
+    report(ERROR) << "failed connecting " << ip << ":" << port << std::endl;
     return false;
 }
 
@@ -54,7 +55,7 @@ bool TCPSocket::bind(const std::string &ip, uint16_t port)
 
     return true;
   FAIL_CONNECT:
-    std::cerr << "failed binding on " << ip << ":" << port << std::endl;
+    report(ERROR) << "failed binding on " << ip << ":" << port << std::endl;
     return false;
 }
 
@@ -63,7 +64,7 @@ bool TCPSocket::listen(int backlog)
     if (::listen(socket_, backlog) == 0)
         return true;
 
-    std::cerr << "failed listening on socket " << socket_ << std::endl;
+    report(ERROR) << "failed listening on socket " << socket_ << std::endl;
     return false;
 }
 
@@ -75,7 +76,7 @@ bool TCPSocket::accept(TCPSocket &sock, std::string &ip, uint16_t &port)
     int sock_client = ::accept(socket_, reinterpret_cast<struct sockaddr*>(&client_addr), &len);
     if (sock_client < 0)
     {
-        std::cerr << "fail accepting connection" << std::endl;
+        report(ERROR) << "fail accepting connection" << std::endl;
         return false;
     }
 
@@ -83,7 +84,7 @@ bool TCPSocket::accept(TCPSocket &sock, std::string &ip, uint16_t &port)
     const char *client_ip = inet_ntop(AF_INET, &client_addr.sin_addr, tmp, INET_ADDRSTRLEN);
     if (!client_ip)
     {
-        std::cerr << "fail converting network address" << std::endl;
+        report(ERROR) << "fail converting network address" << std::endl;
         return false;
     }
 
@@ -98,7 +99,7 @@ bool TCPSocket::set_blocking(bool flag)
     int opts;
     if ((opts = fcntl(socket_, F_GETFL)) < 0)
     {
-        std::cerr << "fail getting socket status" << std::endl;
+        report(ERROR) << "fail getting socket status" << std::endl;
         return false;
     }
 
@@ -109,7 +110,7 @@ bool TCPSocket::set_blocking(bool flag)
 
     if (fcntl(socket_, F_SETFL, opts) < 0)
     {
-        std::cerr << "fail setting socket status" << std::endl;
+        report(ERROR) << "fail setting socket status" << std::endl;
         return false;
     }
 
