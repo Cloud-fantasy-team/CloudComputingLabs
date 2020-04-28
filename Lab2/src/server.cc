@@ -166,15 +166,67 @@ std::unique_ptr<Headers> Server::parse_headers(std::string &str)
     return hdr_obj;
 }
 
-/// A very buggy method.
+/// A complete ugly hack since I'm running out of time.
 std::string Server::parse_uri(std::string const &uri)
 {
     std::string f = content_base;
-    f += uri;
+    std::string normalized = uri;
+
+    if (normalized.length() > 2 && normalized[0] == '.' && normalized[1] == '/')
+        normalized = normalized.substr(1);
+
+    if (normalized.length() && normalized[0] != '/')
+        return "";
+
+    f += normalized;
     if (f.back() == '/')
         f += "index.html";
 
     return f;
+}
+
+std::unordered_map<std::string, std::string> 
+Server::parse_name_id(std::string const&data)
+{
+    std::unordered_map<std::string, std::string> map;
+    auto pairs = split(data, "&");
+    
+    for (auto &pair : pairs)
+    {
+        auto kv = split(pair, "=");
+        if (kv.size() != 2)
+        {
+            report(ERROR) << "Unknown data " << pair << std::endl;
+            continue;
+        }
+
+        trim_whitespace(kv[0]);
+        trim_whitespace(kv[1]);
+        if (map.count(kv[0]))
+            report(ERROR) << "duplicate data " << pair << " and " << kv[0] << map[kv[0]] << std::endl;
+        map[kv[0]] = kv[1];
+    }
+    return map;
+}
+
+/// Complete hack.
+void Server::recv_body(Request *req, TCPSocket *client_sock)
+{
+    static std::vector<std::string> content_lens = {"content-length", "Content-Length", "Content-length"};
+
+    for (auto &CL : content_lens)
+        if (req->headers->find(CL) != req->headers->end())
+        {
+            long long content_len = std::stoll(req->headers->find(CL)->second);
+            if (content_len > 0)
+            {
+                char *buff = new char[content_len];
+                client_sock->recv_bytes(buff, content_len);
+                req->body = std::vector<char>(buff, buff + content_len);
+                delete[] buff;
+            }
+            return;
+        }
 }
 
 void Server::serve_client(std::unique_ptr<TCPSocket> client_sock)
@@ -213,13 +265,16 @@ void Server::serve_client(std::unique_ptr<TCPSocket> client_sock)
     }
     req->headers.reset(headers.release());
 
+    /* body. */
+    recv_body(req.get(), client_sock.get());
+
     /* dispatch. */
     if (req->method == "GET")
         handle_get(std::move(req), std::move(client_sock));
     else if (req->method == "POST")
-        page_not_found(std::move(client_sock));
+        handle_post(std::move(req), std::move(client_sock));
     else
-        page_not_found(std::move(client_sock));
+        method_not_supported(std::move(client_sock), req->method);
 }
 
 void Server::handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock)
@@ -230,7 +285,7 @@ void Server::handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket>
     std::ifstream file(filename);
     if (!file)
     {
-        page_not_found(std::move(client_sock));
+        page_not_found(std::move(client_sock), req->resource);
         return;
     }
 
@@ -248,22 +303,51 @@ void Server::handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket>
     client_sock->send(html.c_str(), html.length());
 }
 
+/// I know this is ugly. But I'm running out of time.
 void Server::handle_post(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock)
 {
+    std::unique_ptr<Response> res(new Response());
+    std::string uri = req->resource;
+    auto data = parse_name_id(std::string(req->body.begin(), req->body.end()));
 
+    if (uri != "/Post_show" || !data.count("Name") || !data.count("ID"))
+    {
+        page_not_found(std::move(client_sock), uri);
+        return;
+    }
+
+    res->status_code = 200;
+    res->status = "OK";
+
+    std::stringstream ss;
+    ss << "<html><title>POST method</title><body bgcolor=ffffff>\r\n";
+    ss << "Your Name:   " << data["Name"] << "\r\n";
+    ss << "ID:  " << data["ID"] << "\r\n";
+    ss << "<hr><em>Http Web server</em>\r\n";
+    ss << "</body></html>\r\n";
+    std::string content = ss.str();
+
+    res->headers->insert(std::make_pair("Server", server_name));
+    res->headers->insert(std::make_pair("Content-type", "text/html"));
+    res->headers->insert(std::make_pair("Content-length", std::to_string(content.length())));
+    res->body = std::vector<char>(content.begin(), content.end());
+
+    std::string html = res->serialize();
+    client_sock->send(html.c_str(), html.length());
+    client_sock->close();
 }
 
-void Server::page_not_found(std::unique_ptr<TCPSocket> client_sock)
+void Server::page_not_found(std::unique_ptr<TCPSocket> client_sock, std::string const &f)
 {
     std::unique_ptr<Response> res(new Response());
     res->status_code = 404;
     res->status = "Page Not Found";
 
     std::stringstream ss;
-    ss << "<html><title>404 Not Found</title>";
-    ss << "<body bgcolor=\"FFFFFF\">\r\n";
-    ss << "<p>Not Found</p>";
-    ss << "<hr><em>HTTP Web server</em>";
+    ss << "<html><title>404 Not Found</title><body bgcolor=\"FFFFFF\">\r\n";
+    ss << " Not Found\r\n";
+    ss << "<p>Couldn't find this file: " << f << "\r\n";
+    ss << "<hr><em>HTTP Web server</em>\r\n";
     ss << "</body></html>";
     std::string body = ss.str();
 

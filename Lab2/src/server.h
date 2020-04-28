@@ -33,10 +33,12 @@ private:
     std::unique_ptr<Headers> parse_headers(std::string &line);
     /// Parse [uri] and return a file name.
     std::string parse_uri(std::string const &uri);
-
+    /// Complete hack.
+    std::unordered_map<std::string, std::string> parse_name_id(std::string const&data);
+    void recv_body(Request *req, TCPSocket *client_sock);
 
     /* Error handlers. */
-    void page_not_found(std::unique_ptr<TCPSocket> client_sock);
+    void page_not_found(std::unique_ptr<TCPSocket> client_sock, std::string const &f);
     void method_not_supported(std::unique_ptr<TCPSocket> client_sock, std::string &m);
     void version_not_supported(std::unique_ptr<TCPSocket> client_sock);
     void internal_error(std::unique_ptr<TCPSocket> client_sock, std::string const &msg);
@@ -51,16 +53,16 @@ private:
     /// Pool of workers.
     thread_pool workers;
 
-    using Handlers = std::unordered_map<
-        std::string, 
-        std::function<void(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket>)> >;
+    // using Handlers = std::unordered_map<
+    //     std::string, 
+    //     std::function<void(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket>)> >;
 
     /// Base dir to serve content.
     std::string content_base;
 
-    /// Handlers.
-    Handlers get_handlers;
-    Handlers post_handlers;
+    // /// Handlers.
+    // Handlers get_handlers;
+    // Handlers post_handlers;
 };
 
 } // namespace simple_http_server
