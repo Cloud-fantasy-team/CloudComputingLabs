@@ -15,24 +15,9 @@ int main(int argc, char **argv)
     if (std::string(argv[1]) == "server")
     {
         initialize_reporter("err_server.log", "warn_server.log", "info_server.log");
-        TCPSocket sock;
-        sock.bind("127.0.0.1", 8081);
-        sock.listen();
 
-        for (;;)
-        {
-            TCPSocket client_sock;
-            std::string ip;
-            uint16_t port;
-            if (!sock.accept(client_sock, ip, port))
-                abort();
-
-            std::string line = client_sock.recv_line();
-            std::cout << line << std::endl;
-            client_sock.send_line(line);
-        }
-        // Server server("127.0.0.1", 8081);
-        // server.start();
+        Server server("127.0.0.1", 8081);
+        server.start();
     }
 
     else if (std::string(argv[1]) == "client")

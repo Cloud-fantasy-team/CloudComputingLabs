@@ -12,7 +12,7 @@ $(TARGET): $(OBJS) $(HEADERS)
 	$(CC) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
 $(OBJS): ./src/%.o: ./src/%.cc ./src/%.h
-	$(CC) -c $(CXXFLAGS) -o $@ $<
+	$(CC) -g -c $(CXXFLAGS) -o $@ $<
 
 # Empty rule.
 src/main.h:

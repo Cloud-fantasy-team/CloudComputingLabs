@@ -30,6 +30,22 @@ static std::vector<std::string> split(std::string const &str, std::string const 
     return tokens;
 }
 
+static std::string concat(std::vector<std::string> &strs, std::string const &delim)
+{
+    assert(!strs.empty());
+    std::stringstream ss;
+
+    ss << strs[0];
+    for (auto iter = strs.begin() + 1; iter != strs.end(); iter++)
+    {
+        ss << delim << *iter;
+    }
+
+    return ss.str();
+}
+
+const std::string Server::server_name = "Cloud-fantasy server";
+
 Server::Server(std::string const &ip, uint16_t port, size_t n_threads)
     : sock(new TCPSocket()), workers(*this, n_threads)
 {
@@ -101,10 +117,15 @@ std::unique_ptr<Headers> Server::parse_headers(std::string &str)
         trim_whitespace(hd);
         auto kv = split(hd, ":");
 
-        if (kv.size() != 2)
+        if (kv.size() > 2)
         {
-            report(ERROR) << "invalid header" << std::endl;
-            abort();
+            auto value = std::vector<std::string>(kv.begin() + 1, kv.end());
+            kv[1] = concat(value, ":");
+        }
+        else if (kv.size() < 2)
+        {
+            report(ERROR) << "invalid header: " << hd << std::endl;
+            continue;
         }
 
         trim_whitespace(kv[0]);
@@ -154,9 +175,76 @@ void Server::serve_client(std::unique_ptr<TCPSocket> client_sock)
     if (req->method == "GET")
         handle_get(std::move(req), std::move(client_sock));
     else if (req->method == "POST")
-        handle_post(std::move(req), std::move(client_sock));
+        page_not_found(std::move(client_sock));
     else
-        method_not_supported(std::move(client_sock));
+        page_not_found(std::move(client_sock));
+}
+
+void Server::handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock)
+{
+    
+}
+
+void Server::handle_post(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock)
+{
+
+}
+
+void Server::page_not_found(std::unique_ptr<TCPSocket> client_sock)
+{
+    std::unique_ptr<Response> res(new Response());
+    res->status_code = 404;
+    res->status = "Page Not Found";
+
+    std::stringstream ss;
+    ss << "<html><title>404 Not Found</title>";
+    ss << "<body bgcolor=\"FFFFFF\">\r\n";
+    ss << "<p>Page Not Found</p>";
+    ss << "</body></html>";
+    std::string body = ss.str();
+
+    res->headers->insert(std::make_pair("Server", server_name));
+    res->headers->insert(std::make_pair("Content-type", "text/html"));
+    res->headers->insert(std::make_pair("Content-length", std::to_string(body.length())));
+    res->body = std::vector<char>(body.begin(), body.end());
+
+    std::string html = res->serialize();
+    client_sock->send(html.c_str(), html.length());
+    client_sock->close();
+}
+
+void Server::internal_error(std::unique_ptr<TCPSocket> client_sock, std::string &msg)
+{
+    std::unique_ptr<Response> res(new Response());
+    res->status_code = 500;
+    res->status = "Internal server error";
+
+    res->headers->insert(std::make_pair("Server", server_name));
+    res->headers->insert(std::make_pair("Content-type", "text/html"));
+    res->headers->insert(std::make_pair("Content-length", std::to_string(msg.length())));
+    res->body = std::vector<char>(msg.begin(), msg.end());
+}
+
+void Server::version_not_supported(std::unique_ptr<TCPSocket> client_sock)
+{
+    std::stringstream ss;
+    ss << "<html><title>HTTP version not supported</title>";
+    ss << "<body>\r\n" << "<p>Unsupported HTTP version</p>";
+    ss << "</body></html>";
+    std::string body = ss.str();
+
+    internal_error(std::move(client_sock), body);
+}
+
+void Server::method_not_supported(std::unique_ptr<TCPSocket> client_sock)
+{
+    std::stringstream ss;
+    ss << "<html><title>method not supported</title>";
+    ss << "<body>\r\n" << "<p>Unsupported HTTP method</p>";
+    ss << "</body></html>";
+    std::string body = ss.str();
+
+    internal_error(std::move(client_sock), body);
 }
 
 } // namespace simple_http_serve

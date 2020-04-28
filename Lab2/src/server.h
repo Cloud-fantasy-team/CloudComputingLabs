@@ -5,6 +5,7 @@
 
 #include <string>
 #include <memory>
+#include <functional>
 #include "thread_pool.h"
 #include "tcp_socket.h"
 #include "message.h"
@@ -30,17 +31,29 @@ private:
                         std::string &version);
     std::unique_ptr<Headers> parse_headers(std::string &line);
 
+    /* Error handlers. */
+    void page_not_found(std::unique_ptr<TCPSocket> client_sock);
     void method_not_supported(std::unique_ptr<TCPSocket> client_sock);
     void version_not_supported(std::unique_ptr<TCPSocket> client_sock);
-    void internal_error(std::unique_ptr<TCPSocket> client_sock);
+    void internal_error(std::unique_ptr<TCPSocket> client_sock, std::string &msg);
 
     void handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock);
     void handle_post(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock);
 private:
     friend class thread_pool;
 
+    /// Listen fd.
     std::unique_ptr<TCPSocket> sock;
+    /// Pool of workers.
     thread_pool workers;
+
+    using Handlers = std::unordered_map<
+        std::string, 
+        std::function<void(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket>)> >;
+
+    /// Handlers.
+    Handlers get_handlers;
+    Handlers post_handlers;
 };
 
 } // namespace simple_http_server

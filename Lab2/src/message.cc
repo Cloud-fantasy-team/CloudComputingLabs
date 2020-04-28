@@ -18,9 +18,9 @@ std::string Headers::serialize() const
 
 Request::Request()
 {
-    version = "";
+    version = "HTTP/1.1";
     method = "";
-    headers = nullptr;
+    headers.reset(new Headers());
     resource = "";
     body = {};
 }
@@ -43,9 +43,9 @@ std::string Request::serialize() const
 
 Response::Response()
 {
-    version = "";
+    version = "HTTP/1.1";
     method = "";
-    headers = nullptr;
+    headers.reset(new Headers());
     status_code = 0;
     status = "";
     body = {};
