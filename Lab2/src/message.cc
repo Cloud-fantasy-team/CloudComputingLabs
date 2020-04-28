@@ -61,11 +61,12 @@ std::string Headers::serialize() const
 std::unique_ptr<Headers> Headers::deserialize(std::string const &str)
 {
     auto hdr_obj = std::unique_ptr<Headers>(new Headers());
-    auto hdrs = split(str, LINE_END);
+    auto hdrs = split(str, "\n");
 
     for (auto &hd : hdrs)
     {
-        auto kv = split(hd, ": ");
+        trim_cr(hd);
+        auto kv = split(hd, ":");
 
         if (kv.size() != 2)
         {
@@ -73,6 +74,8 @@ std::unique_ptr<Headers> Headers::deserialize(std::string const &str)
             abort();
         }
 
+        trim_ws(kv[0]);
+        trim_ws(kv[1]);
         (*hdr_obj)[kv[0]] = kv[1];
     }
     return hdr_obj;
@@ -94,6 +97,24 @@ std::string Request::serialize() const
     return str_stream.str();
 }
 
+bool Request::deserialize_request_line(std::string &line, 
+                                        std::string &method, 
+                                        std::string &resource, 
+                                        std::string &version)
+{
+    trim_cr(line);
+    std::vector<std::string> v = split(line, " ");
+    if (v.size() != 3)
+    {
+        report(ERROR) << "invalid http request: " << line << std::endl;
+        return false;
+    }
+    method = v[0];
+    resource = v[1];
+    version = v[2];
+
+    return true;
+}
 /// Static
 std::unique_ptr<Request> Request::deserialize(std::string const &str)
 {
@@ -103,16 +124,7 @@ std::unique_ptr<Request> Request::deserialize(std::string const &str)
 
     // Request line.
     std::getline(iss, line, '\n');
-    trim_cr(line);
-    std::vector<std::string> v = split(line, " ");
-    if (v.size() != 3)
-    {
-        report(ERROR) << "invalid http request: " << line << std::endl;
-        return nullptr;
-    }
-    req->method() = v[0];
-    req->resource() = v[1];
-    req->version() = v[2];
+    deserialize_request_line(line, req->method(), req->resource(), req->version());
 
     // Headers.
     for (std::getline(iss, line, '\n'); line != "\r"; std::getline(iss, line, '\n'))

@@ -60,6 +60,10 @@ public:
     std::string serialize() const override;
     /// Creator.
     static std::unique_ptr<Request> deserialize(std::string const &request_str);
+    static bool deserialize_request_line(std::string &str, 
+                                        std::string &method, 
+                                        std::string &resource, 
+                                        std::string &version);
 };
 
 /// HTTP response message.
