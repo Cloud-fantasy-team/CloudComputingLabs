@@ -18,4 +18,4 @@ $(OBJS): ./src/%.o: ./src/%.cc ./src/%.h
 src/main.h:
 
 clean:
-	rm -rf $(OBJS) $(TARGET)
+	rm -rf $(OBJS) $(TARGET) *.log

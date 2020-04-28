@@ -348,7 +348,7 @@ void Server::page_not_found(std::unique_ptr<TCPSocket> client_sock, std::string 
     ss << " Not Found\r\n";
     ss << "<p>Couldn't find this file: " << f << "\r\n";
     ss << "<hr><em>HTTP Web server</em>\r\n";
-    ss << "</body></html>";
+    ss << "</body></html>\r\n";
     std::string body = ss.str();
 
     res->headers->insert(std::make_pair("Server", server_name));
@@ -371,6 +371,10 @@ void Server::internal_error(std::unique_ptr<TCPSocket> client_sock, std::string 
     res->headers->insert(std::make_pair("Content-type", "text/html"));
     res->headers->insert(std::make_pair("Content-length", std::to_string(msg.length())));
     res->body = std::vector<char>(msg.begin(), msg.end());
+
+    std::string html = res->serialize();
+    client_sock->send(html.c_str(), html.length());
+    client_sock->close();
 }
 
 void Server::version_not_supported(std::unique_ptr<TCPSocket> client_sock)
@@ -378,7 +382,7 @@ void Server::version_not_supported(std::unique_ptr<TCPSocket> client_sock)
     std::stringstream ss;
     ss << "<html><title>HTTP version not supported</title>";
     ss << "<body>\r\n" << "<p>Unsupported HTTP version</p>";
-    ss << "</body></html>";
+    ss << "</body></html>\r\n";
     std::string body = ss.str();
 
     internal_error(std::move(client_sock), body);
@@ -388,10 +392,10 @@ void Server::method_not_supported(std::unique_ptr<TCPSocket> client_sock, std::s
 {
     std::stringstream ss;
     ss << "<html><title>501 Not implemented</title>";
-    ss << "<body>\r\n" << "Not Implemented\r\n";
+    ss << "<body>\r\n" << " Not Implemented\r\n";
     ss << "<p>Does not implement this method: " << m << "\r\n";
     ss << "<hr><em>HTTP Web server</em>\r\n";
-    ss << "</body></html>";
+    ss << "</body></html>\r\n";
     std::string body = ss.str();
 
     internal_error(std::move(client_sock), body);

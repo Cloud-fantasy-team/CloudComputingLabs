@@ -1,6 +1,8 @@
 /// reporter.cc
 /// Copyright 2020 Cloud-fantasy team
 
+#include <ctime>
+#include <chrono>
 #include <cassert>
 #include "reporter.h"
 
@@ -22,11 +24,14 @@ void initialize_reporter(std::string const &err,
 
 std::ostream &Reporter::file(const int severity)
 {
+    auto now = std::chrono::system_clock::now();
+    auto now_time = std::chrono::system_clock::to_time_t(now);
+
     switch (severity)
     {
-    case ReportSeverityERROR:   return err_;
-    case ReportSeverityINFO:    return info_;
-    case ReportSeverityWARN:    return warn_;
+    case ReportSeverityERROR:   return err_ << std::ctime(&now_time) << "Error ";
+    case ReportSeverityINFO:    return info_ << std::ctime(&now_time) << "Info ";
+    case ReportSeverityWARN:    return warn_  << std::ctime(&now_time) << "Warn ";
     default:
         assert(0);
     }
