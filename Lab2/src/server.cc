@@ -3,6 +3,7 @@
 
 #include <sstream>
 #include <cstdlib>
+#include <unistd.h>
 #include "server.h"
 #include "reporter.h"
 
@@ -44,11 +45,41 @@ static std::string concat(std::vector<std::string> &strs, std::string const &del
     return ss.str();
 }
 
+static std::string &trim_trailing_slash(std::string &s)
+{
+    if (s.empty())  return s;
+    while (s.back() == '/')
+        s = s.substr(0, s.length() - 1);
+    return s;
+}
+
 const std::string Server::server_name = "Cloud-fantasy server";
 
-Server::Server(std::string const &ip, uint16_t port, size_t n_threads)
+Server::Server(std::string const &ip, uint16_t port, 
+                std::string const &content_base, size_t n_threads)
     : sock(new TCPSocket()), workers(*this, n_threads)
 {
+    if (content_base == "")
+    {
+        char cwd_buf[1024];
+        this->content_base = std::string(getcwd(cwd_buf, sizeof(cwd_buf)));
+    }
+    else
+    {
+        // Check for existence.
+        {
+            std::ifstream test_existence(content_base);
+            if (!test_existence)
+            {
+                report(ERROR) << "Non-existed content base dir: " << content_base << std::endl;
+                abort();
+            }
+        }
+
+        this->content_base = content_base;
+        trim_trailing_slash(this->content_base);
+    }
+    
     sock->bind(ip, port);
 }
 
@@ -135,6 +166,17 @@ std::unique_ptr<Headers> Server::parse_headers(std::string &str)
     return hdr_obj;
 }
 
+/// A very buggy method.
+std::string Server::parse_uri(std::string const &uri)
+{
+    std::string f = content_base;
+    f += uri;
+    if (f.back() == '/')
+        f += "index.html";
+
+    return f;
+}
+
 void Server::serve_client(std::unique_ptr<TCPSocket> client_sock)
 {
     std::unique_ptr<Request> req(new Request());
@@ -166,7 +208,7 @@ void Server::serve_client(std::unique_ptr<TCPSocket> client_sock)
     std::unique_ptr<Headers> headers = parse_headers(header_str);
     if (!headers)
     {
-        internal_error(std::move(client_sock));
+        internal_error(std::move(client_sock), "internal error");
         return;
     }
     req->headers.reset(headers.release());
@@ -182,7 +224,28 @@ void Server::serve_client(std::unique_ptr<TCPSocket> client_sock)
 
 void Server::handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock)
 {
-    
+    std::unique_ptr<Response> res(new Response());
+    std::string filename = parse_uri(req->resource);
+
+    std::ifstream file(filename);
+    if (!file)
+    {
+        page_not_found(std::move(client_sock));
+        return;
+    }
+
+    std::string content((std::istreambuf_iterator<char>(file)),
+        std::istreambuf_iterator<char>());
+
+    res->status_code = 200;
+    res->status = "OK";
+    res->body = std::vector<char>(content.begin(), content.end());
+    res->headers->insert(std::make_pair("Server", server_name));
+    res->headers->insert(std::make_pair("Content-type", "text/html"));
+    res->headers->insert(std::make_pair("Content-length", std::to_string(content.length())));
+
+    std::string html = res->serialize();
+    client_sock->send(html.c_str(), html.length());
 }
 
 void Server::handle_post(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock)
@@ -199,7 +262,8 @@ void Server::page_not_found(std::unique_ptr<TCPSocket> client_sock)
     std::stringstream ss;
     ss << "<html><title>404 Not Found</title>";
     ss << "<body bgcolor=\"FFFFFF\">\r\n";
-    ss << "<p>Page Not Found</p>";
+    ss << "<p>Not Found</p>";
+    ss << "<hr><em>HTTP Web server</em>";
     ss << "</body></html>";
     std::string body = ss.str();
 
@@ -213,11 +277,11 @@ void Server::page_not_found(std::unique_ptr<TCPSocket> client_sock)
     client_sock->close();
 }
 
-void Server::internal_error(std::unique_ptr<TCPSocket> client_sock, std::string &msg)
+void Server::internal_error(std::unique_ptr<TCPSocket> client_sock, std::string const &msg)
 {
     std::unique_ptr<Response> res(new Response());
-    res->status_code = 500;
-    res->status = "Internal server error";
+    res->status_code = 501;
+    res->status = "Not Implemented";
 
     res->headers->insert(std::make_pair("Server", server_name));
     res->headers->insert(std::make_pair("Content-type", "text/html"));
@@ -236,11 +300,13 @@ void Server::version_not_supported(std::unique_ptr<TCPSocket> client_sock)
     internal_error(std::move(client_sock), body);
 }
 
-void Server::method_not_supported(std::unique_ptr<TCPSocket> client_sock)
+void Server::method_not_supported(std::unique_ptr<TCPSocket> client_sock, std::string &m)
 {
     std::stringstream ss;
-    ss << "<html><title>method not supported</title>";
-    ss << "<body>\r\n" << "<p>Unsupported HTTP method</p>";
+    ss << "<html><title>501 Not implemented</title>";
+    ss << "<body>\r\n" << "Not Implemented\r\n";
+    ss << "<p>Does not implement this method: " << m << "\r\n";
+    ss << "<hr><em>HTTP Web server</em>\r\n";
     ss << "</body></html>";
     std::string body = ss.str();
 

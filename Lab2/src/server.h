@@ -18,7 +18,8 @@ class Server
 {
 public:
     static const std::string server_name;
-    Server(const std::string &ip, uint16_t port, size_t n_threads = 8);
+    Server(const std::string &ip, uint16_t port, 
+            std::string const &content_base = "", size_t n_threads = 8);
 
     void start();
     void serve_client(std::unique_ptr<TCPSocket> client_sock);
@@ -30,12 +31,15 @@ private:
                         std::string &uri,
                         std::string &version);
     std::unique_ptr<Headers> parse_headers(std::string &line);
+    /// Parse [uri] and return a file name.
+    std::string parse_uri(std::string const &uri);
+
 
     /* Error handlers. */
     void page_not_found(std::unique_ptr<TCPSocket> client_sock);
-    void method_not_supported(std::unique_ptr<TCPSocket> client_sock);
+    void method_not_supported(std::unique_ptr<TCPSocket> client_sock, std::string &m);
     void version_not_supported(std::unique_ptr<TCPSocket> client_sock);
-    void internal_error(std::unique_ptr<TCPSocket> client_sock, std::string &msg);
+    void internal_error(std::unique_ptr<TCPSocket> client_sock, std::string const &msg);
 
     void handle_get(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock);
     void handle_post(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket> client_sock);
@@ -50,6 +54,9 @@ private:
     using Handlers = std::unordered_map<
         std::string, 
         std::function<void(std::unique_ptr<Request> req, std::unique_ptr<TCPSocket>)> >;
+
+    /// Base dir to serve content.
+    std::string content_base;
 
     /// Handlers.
     Handlers get_handlers;
