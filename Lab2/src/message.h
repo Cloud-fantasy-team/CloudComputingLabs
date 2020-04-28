@@ -5,23 +5,12 @@
 #define MESSAGE_H
 
 #include <memory>
+#include <cassert>
 #include <unordered_map>
 #include <string>
 
 namespace simple_http_server
 {
-
-/// NOTE: we're only implementing GET/POST.
-enum class Method : uint8_t
-{
-    GET,
-    POST,
-    HEAD,
-    PUT,
-    DELETE,
-    TRACE,
-    PATCH
-};
 
 static const std::string LINE_END = "\r\n";
 
@@ -37,27 +26,37 @@ public:
 /// Base HTTP message.
 class Message
 {
-protected:
+private:
     std::string version_;
-    Method method_;
+    std::string method_;
     std::unique_ptr<Headers> headers_;
-    void *body_;
-    size_t body_len_;
+    std::vector<char> body_;
 
 public:
     virtual std::string serialize() const = 0;
+    Message() {}
 
-    std::string version() const { return version_; }
-    Method method() const { return method_; }
+    /* getters and setters. */
+    const std::string &version() const { return version_; }
+    std::string &version() { return version_; }
+    const std::string &method() const { return method_; }
+    std::string &method() { return method_; }
     Headers *headers() const { return headers_.get(); }
-    void *body() const { return body_; }
-    size_t body_len() const { return body_len_; }
+    const std::vector<char> &body() const { return body_; }
+    std::vector<char> &body() { return body_; }
 };
 
 /// HTTP request message.
 class Request : public Message
 {
+private:
+    std::string resource_;
+
 public:
+    /* getters and setters. */
+    const std::string &resource() const { return resource_; }
+    std::string &resource() { return resource_; }
+
     std::string serialize() const override;
     /// Creator.
     static std::unique_ptr<Request> deserialize(std::string const &request_str);
@@ -66,13 +65,18 @@ public:
 /// HTTP response message.
 class Response : Message
 {
-private:
-    int response_code_;
-
 public:
+    int status_code_;
+    std::string status_;
+
+    /* getters and setters. */
     std::string serialize() const override;
+    int status_code() const { return status_code_; }
+    std::string &status() { return status_; }
+    const std::string &status() const { return status_; }
+
     /// Creator.
-    static std::unique_ptr<Request> deserialize(std::string const &response_str);
+    static std::unique_ptr<Response> deserialize(std::string const &response_str);
 
 public:
     /// Common status code.
