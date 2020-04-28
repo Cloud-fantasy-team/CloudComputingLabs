@@ -211,10 +211,9 @@ std::string TCPSocket::recv_line()
         int n = recv(buffer, 1);
         if (n == 1)
         {
+            ss << *buffer;
             if (*buffer == '\n')
                 break;
-
-            ss << *buffer;
         }
         else if (n == 0)
             break;
