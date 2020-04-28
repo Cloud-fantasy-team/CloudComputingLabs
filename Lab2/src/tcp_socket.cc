@@ -1,6 +1,7 @@
 /// tcp_socket.cc
 /// Copyright 2020 Cloud-fantasy team
 
+#include <sstream>
 #include <iostream>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -128,20 +129,100 @@ bool TCPSocket::set_blocking(bool flag)
     
 }
 
+/// Send [len] bytes from data robustly.
 int TCPSocket::send(const void *data, size_t len)
 {
-    return ::send(socket_, data, len, 0);
+    const char *data_buf = reinterpret_cast<const char*>(data);
+    std::size_t data_len = len;
+
+    while (data_len > 0)
+    {
+        int n = ::send(socket_, data_buf, data_len, 0);
+        if (n <= 0)
+        {
+            if (errno == EINTR)
+                n = 0;
+            else
+                return -1;
+        }
+
+        data_len -= n;
+        data_buf += n;
+    }
+
+    return (len - data_len);
 }
 
-int TCPSocket::send(std::string const &data)
+int TCPSocket::send_line(std::string const &data)
 {
-    return send(data.c_str(), data.length());
+    return send((data + "\n").c_str(), data.length() + 1);
 }
 
-/// Retrive all we can get.
-int TCPSocket::receive(void *buffer, size_t buffer_size)
+int TCPSocket::recv(void *buffer, size_t buffer_size)
 {
-    return recv(socket_, buffer, buffer_size, 0);
+    char *data_buf = reinterpret_cast<char*>(buffer);
+    int n = 0;
+
+    // Make sure we'll always recv'ed something from socket_.
+    while (n == 0)
+    {
+        n += ::recv(socket_, data_buf, buffer_size, 0);
+        if (n < 0)
+        {
+            if (errno == EINTR)
+                n = 0;
+            else
+                return -1;
+        }
+        else if (n == 0)
+            return 0;
+    }
+
+    return n;
+}
+
+int TCPSocket::recv_bytes(void *buffer, size_t n)
+{
+    size_t nleft = n;
+    char *data_buf = reinterpret_cast<char*>(buffer);
+
+    while (nleft > 0)
+    {
+        ssize_t n = recv(data_buf, nleft);
+        if (n < 0)
+            return -1;
+        else if (n == 0)
+            // EOF.
+            break;
+        nleft -= n;
+        data_buf += n;
+    }
+
+    return (n - nleft);
+}
+
+std::string TCPSocket::recv_line()
+{
+    std::stringstream ss;
+    char buffer[2];
+
+    for (;;)
+    {
+        int n = recv(buffer, 1);
+        if (n == 1)
+        {
+            if (*buffer == '\n')
+                break;
+
+            ss << *buffer;
+        }
+        else if (n == 0)
+            break;
+        else
+            // Error reading a line.
+            return "";
+    }
+    return ss.str();
 }
 
 bool TCPSocket::shutdown(int how)

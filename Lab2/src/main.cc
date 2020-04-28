@@ -15,8 +15,24 @@ int main(int argc, char **argv)
     if (std::string(argv[1]) == "server")
     {
         initialize_reporter("err_server.log", "warn_server.log", "info_server.log");
-        Server server("127.0.0.1", 8081);
-        server.start();
+        TCPSocket sock;
+        sock.bind("127.0.0.1", 8081);
+        sock.listen();
+
+        for (;;)
+        {
+            TCPSocket client_sock;
+            std::string ip;
+            uint16_t port;
+            if (!sock.accept(client_sock, ip, port))
+                abort();
+
+            std::string line = client_sock.recv_line();
+            std::cout << line << std::endl;
+            client_sock.send_line(line);
+        }
+        // Server server("127.0.0.1", 8081);
+        // server.start();
     }
 
     else if (std::string(argv[1]) == "client")
@@ -24,15 +40,13 @@ int main(int argc, char **argv)
         initialize_reporter("err_client.log", "warn_client.log", "info_client.log");
         std::string line;
 
-        char buf[1024];
         while (true)
         {
             TCPSocket sock;
             sock.connect("127.0.0.1", 8081);
             std::getline(std::cin, line);
-            sock.send(line);
-            buf[sock.receive(buf, sizeof(buf))] = '\0';
-            std::cout << buf << std::endl;
+            sock.send_line(line);
+            std::cout << sock.recv_line() << std::endl;
         }
     }
     else

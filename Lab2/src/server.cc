@@ -2,6 +2,7 @@
 /// Copyright 2020 Cloud-fantasy team
 
 #include <cstdlib>
+#include "message.h"
 #include "server.h"
 #include "reporter.h"
 

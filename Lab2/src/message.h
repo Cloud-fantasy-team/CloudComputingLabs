@@ -4,6 +4,7 @@
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
+#include <vector>
 #include <memory>
 #include <cassert>
 #include <unordered_map>

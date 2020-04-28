@@ -38,10 +38,21 @@ public:
     bool shutdown(int how);
     void close();
 
-    /// Send and receive.
+    /* 
+    Send and receive robustly(unbuffered).
+    See CSAPP chapter 10.
+    */
+
+    /// Send [len] bytes from data robustly.
     int send(const void *data, size_t len);
-    int send(std::string const &data);
-    int receive(void *buffer, size_t buffer_size);
+    /// Send [data] + "\n" robustly.
+    int send_line(std::string const &data);
+    /// Receive some bytes <= buffer_size.
+    int recv(void *buffer, size_t buffer_size);
+    /// Receive [n] bytes.
+    int recv_bytes(void *buffer, size_t n);
+    /// Receive a line with "\n" stripped.
+    std::string recv_line();
 };
 
 }   // namespace simple_http_server
