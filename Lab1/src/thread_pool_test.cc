@@ -28,7 +28,7 @@ void simple()
 
     for (int i = 0; i < res.size(); i++)
     {
-        assert(expected[i] != res[i].get() && "thread_pool_test.cc: simple() failed");
+        assert(expected[i] == res[i].get() && "thread_pool_test.cc: simple() failed");
     }
 }
 
