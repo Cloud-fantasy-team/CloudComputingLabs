@@ -19,3 +19,18 @@ Current status
 --------------
 
 The main program should be able to read input file name from stdin and solve the puzzles in each of the given file. 
+
+To run the program:
+
+```bash
+make    # Compile the program
+./sudoku_solve
+```
+
+The program accepts input file(test cases) from stdin:
+
+```bash
+./sudoku_testcases/tests
+```
+
+![test_case](./test_case.png)

@@ -1,7 +1,7 @@
 CC=g++
 CXXFLAGS=-std=c++14 -Wall -Werror
 
-all: test sudoku_solve
+all: sudoku_solve
 
 test: sudoku_basic_test thread_pool_test
 	./thread_pool_test
