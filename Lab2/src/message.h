@@ -31,6 +31,7 @@ struct Message
     std::unique_ptr<Headers> headers;
     std::vector<char> body;
 
+    virtual ~Message() = default;
     virtual std::string serialize() const = 0;
 };
 
