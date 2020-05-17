@@ -49,6 +49,7 @@
         "future": "cpp",
         "mutex": "cpp",
         "thread": "cpp",
-        "cstring": "cpp"
+        "cstring": "cpp",
+        "__mutex_base": "cpp"
     }
 }

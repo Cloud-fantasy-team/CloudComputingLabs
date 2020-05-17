@@ -1,5 +1,5 @@
-#ifndef TCP_SOCKET_HPP
-#define TCP_SOCKET_HPP
+#ifndef TCP_SERVER_TCP_SOCKET_HPP
+#define TCP_SERVER_TCP_SOCKET_HPP
 
 #include <string>
 #include <vector>
