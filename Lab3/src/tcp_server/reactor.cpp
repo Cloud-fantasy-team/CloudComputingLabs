@@ -4,14 +4,16 @@
 namespace tcp_server
 {
 
-Reactor::Reactor(std::size_t thread_num)
+reactor global_reactor{2};
+
+reactor::reactor(std::size_t thread_num)
     : callback_workers_(thread_num)
     , poll_stop_(false)
 {
-    poll_worker_ = std::thread(std::bind(&Reactor::poll, this));
+    poll_worker_ = std::thread(std::bind(&reactor::poll, this));
 }
 
-Reactor::~Reactor()
+reactor::~reactor()
 {
     poll_stop_ = true;
 
@@ -19,7 +21,7 @@ Reactor::~Reactor()
         poll_worker_.join();
 }
 
-void Reactor::register_fd(int fd,
+void reactor::register_fd(int fd,
                           const event_handler_t &rd_callback,
                           const event_handler_t &wr_callback)
 {
@@ -33,12 +35,12 @@ void Reactor::register_fd(int fd,
     notifier_.notify();
 }
 
-void Reactor::set_thread_num(std::size_t thread_num)
+void reactor::set_thread_num(std::size_t thread_num)
 {
     callback_workers_.set_thread_num(thread_num);
 }
 
-void Reactor::set_rd_callback(int fd, const event_handler_t &cb)
+void reactor::set_rd_callback(int fd, const event_handler_t &cb)
 {
     std::lock_guard<std::mutex> lock(tracked_fds_mutex_);
 
@@ -49,7 +51,7 @@ void Reactor::set_rd_callback(int fd, const event_handler_t &cb)
     notifier_.notify();
 }
 
-void Reactor::set_wr_callback(int fd, const event_handler_t &cb)
+void reactor::set_wr_callback(int fd, const event_handler_t &cb)
 {
     std::lock_guard<std::mutex> lock(tracked_fds_mutex_);
 
@@ -59,7 +61,7 @@ void Reactor::set_wr_callback(int fd, const event_handler_t &cb)
     notifier_.notify();
 }
 
-void Reactor::unregister(int fd)
+void reactor::unregister(int fd)
 {
     std::lock_guard<std::mutex> lock(tracked_fds_mutex_);
 
@@ -84,8 +86,18 @@ void Reactor::unregister(int fd)
     notifier_.notify();
 }
 
+void reactor::wait_on_removal_cond(int fd)
+{
+    std::unique_lock<std::mutex> lock(tracked_fds_mutex_);
+
+    // Wait until [fd] and its associative info is erased.
+    removal_cond.wait(lock, [&] {
+        return this->tracked_fds_.find(fd) == this->tracked_fds_.end();
+    });
+}
+
 /// TODO: Add epoll for linux.
-void Reactor::poll()
+void reactor::poll()
 {
     while (!poll_stop_)
     {
@@ -102,7 +114,7 @@ void Reactor::poll()
     }
 }
 
-int Reactor::init_select_fds()
+int reactor::init_select_fds()
 {
     std::lock_guard<std::mutex> lock(tracked_fds_mutex_);
 
@@ -139,12 +151,12 @@ int Reactor::init_select_fds()
     return nfds + 1;
 }
 
-void Reactor::dispatch()
+void reactor::dispatch()
 {
     dispatch_select();
 }
 
-void Reactor::dispatch_select()
+void reactor::dispatch_select()
 {
     std::lock_guard<std::mutex> lock(tracked_fds_mutex_);
 
@@ -176,7 +188,7 @@ void Reactor::dispatch_select()
     }
 }
 
-void Reactor::dispatch_read(int fd)
+void reactor::dispatch_read(int fd)
 {
     if (!tracked_fds_.count(fd))
         return;
@@ -214,7 +226,7 @@ void Reactor::dispatch_read(int fd)
     });
 }
 
-void Reactor::dispatch_write(int fd)
+void reactor::dispatch_write(int fd)
 {
     if (!tracked_fds_.count(fd))
         return;

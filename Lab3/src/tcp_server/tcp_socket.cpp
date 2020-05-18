@@ -202,4 +202,27 @@ void tcp_socket::close()
     type_ = type::UNKNOWN;
 }
 
+void tcp_socket::ensure_fd()
+{
+    if (fd_ != -1)
+        return;
+
+    fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    type_ = type::UNKNOWN;
+
+    if (fd_ == -1)
+        __TCP_THROW("error socket()");
+}
+
+void tcp_socket::ensure_type(tcp_socket::type t)
+{
+    if (type_ == type::UNKNOWN)
+    {
+        type_ = t;
+    }
+
+    if (type_ != t)
+        __TCP_THROW("unmatch socket type for performing operations");
+}
+
 } // namespace tcp_server

@@ -50,6 +50,20 @@
         "mutex": "cpp",
         "thread": "cpp",
         "cstring": "cpp",
-        "__mutex_base": "cpp"
+        "__mutex_base": "cpp",
+        "__bit_reference": "cpp",
+        "__functional_03": "cpp",
+        "__hash_table": "cpp",
+        "__node_handle": "cpp",
+        "__tree": "cpp",
+        "__tuple": "cpp",
+        "complex": "cpp",
+        "filesystem": "cpp",
+        "list": "cpp",
+        "map": "cpp",
+        "queue": "cpp",
+        "set": "cpp",
+        "stack": "cpp",
+        "variant": "cpp"
     }
 }

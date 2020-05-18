@@ -10,19 +10,25 @@
 
 namespace tcp_server {
 
+/// Forward declaration.
+class reactor;
+
+/// Singleton.
+extern reactor global_reactor;
+
 /// Reactor class deviates a bit from the original
 /// paper's description. The reactor consists of a
 /// single polling thread that calls multiplexing I/O
 /// syscall and a thread pool for dispatching handlers.
-class Reactor
+class reactor
 {
 public:
     /// Constructors.
-    Reactor(std::size_t thread_num);
-    ~Reactor();
+    reactor(std::size_t thread_num);
+    ~reactor();
 
-    Reactor(const Reactor &) = delete;
-    Reactor& operator=(const Reactor&) = delete;
+    reactor(const reactor &) = delete;
+    reactor& operator=(const reactor&) = delete;
 
 public:
     /*
@@ -49,6 +55,9 @@ public:
 
     /// Unregister an [fd].
     void unregister(int fd);
+
+    /// Wait until [fd] is removed from [tracked_fds_].
+    void wait_on_removal_cond(int fd);
 
     /*
     PRIVATE implementation is below.
@@ -79,9 +88,6 @@ private:
     void dispatch_select();
     void dispatch_read(int fd);
     void dispatch_write(int fd);
-
-    /// Wait until [fd] is removed from [tracked_fds_].
-    void wait_on_removal_cond(int fd);
 
 private:
     /// fd and callback info map.
