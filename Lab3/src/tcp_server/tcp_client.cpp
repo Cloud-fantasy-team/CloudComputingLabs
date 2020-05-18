@@ -39,14 +39,13 @@ void tcp_client::disconnect(bool wait)
 
     // Unregister from reactor_.
     reactor_->unregister(socket_.fd());
+    socket_.close();
     if (wait)
         reactor_->wait_on_removal_cond(socket_.fd());
 
     // User-provided cb.
     if (on_disconnection_)
         on_disconnection_();
-
-    socket_.close();
 }
 
 void tcp_client::clear_read_reqs()
