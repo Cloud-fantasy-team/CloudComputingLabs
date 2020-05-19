@@ -5,14 +5,22 @@
 #include <string>
 #include "tcp_client.hpp"
 
-static void on_read_completion(tcp_server::tcp_client &, tcp_server::tcp_client::read_result &result)
+using tcp_server_lib::tcp_client;
+
+std::condition_variable cond;
+std::mutex mutex;
+
+static void on_read_completion(tcp_client &c, tcp_client::read_result &result)
 {
-    std::cout << "Recv from echo server" << std::endl;
+    std::cout << "recv'ed from echo server" << std::endl;
     std::cout << std::string{result.data.begin(), result.data.end()} << std::endl << std::endl;
+
+    c.disconnect(true);
 }
 
-static void on_write_completion(tcp_server::tcp_client &client, tcp_server::tcp_client::write_result &result)
+static void on_write_completion(tcp_client &client, tcp_client::write_result &result)
 {
+    std::cout << "sent " << result.size << " bytes to server" << std::endl;
     client.async_read({
         result.size,
         std::bind(&on_read_completion, std::ref(client), std::placeholders::_1)
@@ -21,7 +29,7 @@ static void on_write_completion(tcp_server::tcp_client &client, tcp_server::tcp_
 
 int main()
 {
-    tcp_server::tcp_client client;
+    tcp_client client;
 
     client.connect("localhost", 3001);
     std::vector<std::string> lines{ 
@@ -29,6 +37,14 @@ int main()
         {"complete garbled"},
         {"season system developer"}
     };
+
+    client.on_disconnection() = [&]() { 
+        std::cout << "client disconnected" << std::endl;
+        client.get_reactor()->stop();
+        cond.notify_all();
+        exit(0);
+    };
+
     for (auto &line : lines)
         client.async_write({
             std::vector<char>{line.begin(), line.end()},    /* data */
@@ -36,8 +52,8 @@ int main()
         });
 
     // Wait for ^C
-    std::condition_variable cond;
-    std::mutex mutex;
     std::unique_lock<std::mutex> lock(mutex);
     cond.wait(lock);
+
+    exit(0);
 }

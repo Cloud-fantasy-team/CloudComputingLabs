@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace tcp_server
+namespace tcp_server_lib
 {
 
 /// A simple wrapper around socket interface provided by *nix.
@@ -78,6 +78,9 @@ public:
     int fd() const { return fd_; }
     int &fd() { return fd_; }
 
+    bool operator==(const tcp_socket &rhs) const;
+    bool operator!=(const tcp_socket &rhs) const;
+
 private:
     void ensure_fd();
     void ensure_type(type t);
@@ -91,7 +94,7 @@ private:
     type type_;
 };
 
-} // namespace tcp_server
+} // namespace tcp_server_lib
 
 
 #endif

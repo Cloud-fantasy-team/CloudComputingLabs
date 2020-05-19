@@ -1,7 +1,7 @@
 #include "exceptions.hpp"
 #include "pipe.hpp"
 
-namespace tcp_server {
+namespace tcp_server_lib {
 
 pipe::pipe()
     : fds{-1, -1}
@@ -39,4 +39,4 @@ void pipe::clear_pipe()
     (void)::read(fds[0], buffer, sizeof(buffer));
 }
 
-} // namespace tcp_server
+} // namespace tcp_server_lib

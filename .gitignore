@@ -2,6 +2,8 @@
 httpserver
 *.log
 *.a
+*.dSYM
 
 # Lab 3
 tcp_echo_client
+tcp_echo_server

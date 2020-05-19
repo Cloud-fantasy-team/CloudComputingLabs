@@ -8,7 +8,7 @@
 #include "reactor.hpp"
 #include "tcp_socket.hpp"
 
-namespace tcp_server {
+namespace tcp_server_lib {
 
 /// Proactor TCP client class that utilizes reactor.
 class tcp_client {
@@ -18,9 +18,12 @@ public:
     ~tcp_client();
     /// Explicitly disallow move/copy.
     tcp_client(const tcp_client&) = delete;
-    tcp_client &operator=(const tcp_client&) = delete;
+    tcp_client(tcp_socket&& socket);
     tcp_client(tcp_client&&) = delete;
+    tcp_client &operator=(const tcp_client&) = delete;
     tcp_client &operator=(tcp_client&&) = delete;
+
+public:
 
     /*
     PUBLIC interfaces.
@@ -83,9 +86,19 @@ public:
     /// GETTER.
     tcp_socket &socket() { return socket_; }
     const tcp_socket &socket() const { return socket_; }
+    reactor *get_reactor() const { return reactor_; }
 
     typedef std::function<void()> on_disconnection_t;
-    void set_on_disconnection_cb(on_disconnection_t cb);
+
+    on_disconnection_t &on_disconnection() { return on_disconnection_; }
+    const on_disconnection_t &on_disconnection() const { return on_disconnection_; }
+
+public:
+    /*
+    Needed cuz we need to find within a container.
+    */
+    bool operator==(const tcp_client &rhs) const;
+    bool operator!=(const tcp_client &rhs) const;
 
 private:
     /*

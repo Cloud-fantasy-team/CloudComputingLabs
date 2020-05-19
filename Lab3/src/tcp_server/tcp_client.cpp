@@ -1,7 +1,7 @@
 #include "exceptions.hpp"
 #include "tcp_client.hpp"
 
-namespace tcp_server {
+namespace tcp_server_lib {
 
 tcp_client::tcp_client()
     : reactor_(&global_reactor)
@@ -11,6 +11,12 @@ tcp_client::~tcp_client()
 {
     disconnect(false);
 }
+
+tcp_client::tcp_client(tcp_socket&& socket)
+    : reactor_(&global_reactor)
+    , socket_(std::move(socket))
+    , is_connected_(true)
+    , on_disconnection_(nullptr) {}
 
 void tcp_client::connect(const std::string &host, std::uint32_t port)
 {
@@ -44,8 +50,9 @@ void tcp_client::disconnect(bool wait)
         reactor_->wait_on_removal_cond(socket_.fd());
 
     // User-provided cb.
-    if (on_disconnection_)
+    if (on_disconnection_) {
         on_disconnection_();
+    }
 }
 
 void tcp_client::clear_read_reqs()
@@ -110,6 +117,7 @@ void tcp_client::on_read_available(int)
     read_result result;
     auto user_cb = do_read(result);
 
+    // Disconnect if once operation failed.
     if (!result.success)
     {
         // TODO: add log
@@ -126,6 +134,7 @@ void tcp_client::on_write_available(int)
     write_result result;
     auto user_cb = do_write(result);
 
+    // Disconnect if once operation failed.
     if (!result.success)
     {
         // TODO: add log.
@@ -191,4 +200,14 @@ tcp_client::write_callback_t tcp_client::do_write(tcp_client::write_result &resu
     return cb;
 }
 
-}   // namespace tcp_server
+bool tcp_client::operator==(const tcp_client &rhs) const
+{
+    return socket_ == rhs.socket_;
+}
+
+bool tcp_client::operator!=(const tcp_client &rhs) const
+{
+    return socket_ != rhs.socket_;
+}
+
+}   // namespace tcp_server_lib

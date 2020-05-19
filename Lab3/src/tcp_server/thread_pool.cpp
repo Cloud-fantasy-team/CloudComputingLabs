@@ -1,6 +1,6 @@
 #include "thread_pool.hpp"
 
-namespace tcp_server
+namespace tcp_server_lib
 {
 
 thread_pool::thread_pool(std::size_t thread_num)
@@ -63,6 +63,8 @@ void thread_pool::stop()
     for (auto &worker : workers_)
         worker.join();
 
+    // Prevent join from being called multiple times on the same
+    // worker.
     workers_.clear();
 }
 
@@ -89,4 +91,4 @@ std::size_t thread_pool::get_thread_num() const
     return thread_num_;
 }
 
-} // namespace tcp_server
+} // namespace tcp_server_lib

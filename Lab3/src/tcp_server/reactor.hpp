@@ -8,7 +8,7 @@
 #include "thread_pool.hpp"
 #include "pipe.hpp"
 
-namespace tcp_server {
+namespace tcp_server_lib {
 
 /// Forward declaration.
 class reactor;
@@ -58,6 +58,9 @@ public:
 
     /// Wait until [fd] is removed from [tracked_fds_].
     void wait_on_removal_cond(int fd);
+
+    /// Shutdown the whole reactor.
+    void stop();
 
     /*
     PRIVATE implementation is below.
@@ -116,7 +119,7 @@ private:
     std::condition_variable removal_cond;
 };
 
-} // namespace tcp_server
+} // namespace tcp_server_lib
 
 
 #endif

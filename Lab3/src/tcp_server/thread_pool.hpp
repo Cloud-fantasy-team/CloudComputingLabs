@@ -9,7 +9,7 @@
 #include <queue>
 #include <functional>
 
-namespace tcp_server
+namespace tcp_server_lib
 {
 
 /// Simple thread pool.
@@ -66,7 +66,7 @@ private:
     std::condition_variable tasks_cond;
 };
 
-} // namespace tcp_server
+} // namespace tcp_server_lib
 
 
 #endif

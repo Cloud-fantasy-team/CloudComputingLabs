@@ -1,7 +1,7 @@
 #include <sys/select.h>
 #include "reactor.hpp"
 
-namespace tcp_server
+namespace tcp_server_lib
 {
 
 reactor global_reactor{2};
@@ -19,6 +19,19 @@ reactor::~reactor()
 
     if (poll_worker_.joinable())
         poll_worker_.join();
+}
+
+void reactor::stop()
+{
+    poll_stop_ = true;
+
+    // Force [poll_worker_] to wakeup.
+    notifier_.notify();
+    if (poll_worker_.joinable())
+        poll_worker_.join();
+
+    // Stop the callback workers.
+    callback_workers_.stop();
 }
 
 void reactor::register_fd(int fd,
@@ -259,4 +272,4 @@ void reactor::dispatch_write(int fd)
     });
 }
 
-} // namespace tcp_server
+} // namespace tcp_server_lib
