@@ -220,9 +220,9 @@ void tcp_socket::ensure_fd()
     fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     type_ = type::UNKNOWN;
 
-    int reuse = 1;
-    ::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-
+    int optval = 1;
+    ::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+    ::setsockopt(fd_, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval));
     if (fd_ == -1)
         __TCP_THROW("error socket()");
 }

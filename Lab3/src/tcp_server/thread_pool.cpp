@@ -27,7 +27,7 @@ void thread_pool::init_worker()
         {
             try {
                 task();
-            } catch (const std::exception&) {
+            } catch (const std::exception& e) {
                 // TODO: add log.
             }
         }

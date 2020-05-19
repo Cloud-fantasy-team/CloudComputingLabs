@@ -34,7 +34,6 @@ public:
     /* GETTER. */
     tcp_socket &socket() { return socket_; }
     const tcp_socket &socket() const { return socket_; }
-    reactor *get_reactor() const { return reactor_; }
 
 private:
     /// Callback when we can call socket_.accept() without blocking.

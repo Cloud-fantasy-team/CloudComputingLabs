@@ -86,7 +86,6 @@ public:
     /// GETTER.
     tcp_socket &socket() { return socket_; }
     const tcp_socket &socket() const { return socket_; }
-    reactor *get_reactor() const { return reactor_; }
 
     typedef std::function<void()> on_disconnection_t;
 
