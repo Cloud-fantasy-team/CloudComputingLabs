@@ -40,7 +40,6 @@ int main()
 
     client.on_disconnection() = [&]() { 
         std::cout << "client disconnected" << std::endl;
-        client.get_reactor()->stop();
         cond.notify_all();
         exit(0);
     };

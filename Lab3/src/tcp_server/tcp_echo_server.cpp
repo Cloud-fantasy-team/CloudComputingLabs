@@ -14,6 +14,8 @@ static void echo(std::shared_ptr<tcp_client> client, tcp_client::read_result &re
 {
     if (result.success)
     {
+        std::cout << "number of registered fds: " << client->get_reactor()->register_num() << std::endl;
+
         std::string client_data{result.data.begin(), result.data.end()};
         std::cout << "recv'ed " << client_data.size() << " bytes from client [" << client->host() << ":" << client->port() << "]" << std::endl;
         std::cout << "\t" << client_data << std::endl;

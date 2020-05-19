@@ -1,5 +1,6 @@
 CC = g++
-CXXFLAGS = -std=c++11 -Wall -Wextra -Werror -g
+OPTIMIZE_LEVEL ?= -O3
+CXXFLAGS = -std=c++11 -Wall -Wextra -Werror ${OPTIMIZE_LEVEL}
 
 # I've got complaints about ${MAKE} required sudo privilege. Thought it
 # probably caused by $(shell find ...) or whatever wildcard command. Though
@@ -9,6 +10,9 @@ SRCS = exceptions.cpp tcp_socket.cpp thread_pool.cpp pipe.cpp reactor.hpp tcp_cl
 OBJS = exceptions.o tcp_socket.o thread_pool.o pipe.o reactor.o tcp_client.o tcp_server.o
 
 LIB_TCP_SERVER ?= libtcp_server.a
+
+.PHONY: all
+all: ${LIB_TCP_SERVER} echo_example
 
 .PHONY: ${LIB_TCP_SERVER}
 ${LIB_TCP_SERVER}: ${OBJS}
@@ -27,4 +31,4 @@ tcp_echo_server: ${LIB_TCP_SERVER} tcp_echo_server.cpp
 
 .PHONY: clean
 clean:
-	@ rm -rf *.o ${LIB_TCP_SERVER} tcp_echo_client tcp_echo_server
+	@ rm -rf *.o ${LIB_TCP_SERVER} tcp_echo_client tcp_echo_server *.dSYM

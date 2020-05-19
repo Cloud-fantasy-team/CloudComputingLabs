@@ -47,6 +47,9 @@ public:
                      const event_handler_t &rd_callback = nullptr,
                      const event_handler_t &wr_callback = nullptr);
 
+    /// Return the number of register fds.
+    std::size_t register_num();
+
     /// Update callback on read available.
     void set_rd_callback(int fd, const event_handler_t &cb);
 

@@ -48,6 +48,11 @@ void reactor::register_fd(int fd,
     notifier_.notify();
 }
 
+std::size_t reactor::register_num()
+{
+    return tracked_fds_.size();
+}
+
 void reactor::set_thread_num(std::size_t thread_num)
 {
     callback_workers_.set_thread_num(thread_num);
