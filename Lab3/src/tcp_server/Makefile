@@ -1,4 +1,4 @@
-CC = g++
+CXX = g++ -pthread	# Quirks with GCC.
 OPTIMIZE_LEVEL ?= -O3
 CXXFLAGS = -std=c++11 -Wall -Wextra -Werror ${OPTIMIZE_LEVEL}
 
@@ -20,14 +20,16 @@ ${LIB_TCP_SERVER}: ${OBJS}
 
 echo_example: tcp_echo_client tcp_echo_server
 
+# NOTE: GCC requires strict ordering of object files. Otherwise it will complain
+# about missing symbols.
 tcp_echo_client: ${LIB_TCP_SERVER} tcp_echo_client.cpp
-	${CC} ${CXXFLAGS} tcp_echo_client.cpp -L. -ltcp_server -o tcp_echo_client
+	${CXX} ${CXXFLAGS} tcp_echo_client.cpp -L. -o tcp_echo_client -ltcp_server
 
 tcp_echo_server: ${LIB_TCP_SERVER} tcp_echo_server.cpp
-	${CC} ${CXXFLAGS} tcp_echo_server.cpp -L. -ltcp_server -o tcp_echo_server
+	${CXX} ${CXXFLAGS} tcp_echo_server.cpp -L. -o tcp_echo_server -ltcp_server
 
 %.o: %.cpp ${HEADERS}
-	${CC} -c ${CXXFLAGS} -o $@ $<
+	${CXX} -c ${CXXFLAGS} -o $@ $<
 
 .PHONY: clean
 clean:

@@ -1,3 +1,4 @@
+#include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -105,8 +106,13 @@ void tcp_socket::send(const std::vector<char> &data)
     std::size_t bytes_left = data.size();
     while (bytes_left)
     {
-        int n;
-        if ((n = ::send(fd_, data_ptr, bytes_left, 0)) < 0)
+#ifdef __linux__
+        // Prevent SIGPIPE from terminating the process.
+        int n = ::send(fd_, data_ptr, bytes_left, MSG_NOSIGNAL);
+#else
+        int n = ::send(fd_, data_ptr, bytes_left, 0);
+#endif
+        if (n < 0)
         {
             if (errno == EINTR)
                 n = 0;
@@ -222,7 +228,11 @@ void tcp_socket::ensure_fd()
 
     int optval = 1;
     ::setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
+
+#ifdef __APPLE__
+    // Prevent SIGPIPE from terminating the process.
     ::setsockopt(fd_, SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval));
+#endif
     if (fd_ == -1)
         __TCP_THROW("error socket()");
 }
