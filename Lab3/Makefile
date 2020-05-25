@@ -23,10 +23,10 @@ libtcp_server.a:
 .PHONY: librpc.a
 librpc.a:
 	@ printf "building librpc.a\n"
-	@ cd src/rpclib/ && ${MAKE}
+	@ cd third_party/rpclib/ && ${MAKE}
 	@ echo
 
 .PHONY: clean
 clean:
 	@ cd src/tcp_server && ${MAKE} clean
-	@ cd src/rpclib && ${MAKE} clean
+	@ cd third_party/rpclib && ${MAKE} clean
