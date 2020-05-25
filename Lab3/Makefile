@@ -1,11 +1,32 @@
+OS := ""
+UNAME = $(shell uname -s)
 
-LIB_TCP_SERVER_DIR = src/tcp_server
-LIB_TCP_SERVER = libtcp_server.a
+ifeq (${UNAME},Linux)
+	OS = Linux
+else
+	ifeq (${UNAME},Darwin)
+		OS = Darwin
+	else
+		$(error Non-supported OS)
+	endif
+endif
 
-.PHONY: ${LIB_TCP_SERVER}
-${LIB_TCP_SERVER}:
+all: librpc.a libtcp_server.a
+	@ echo build OK
+
+.PHONY: libtcp_server.a
+libtcp_server.a:
+	@ printf "building libtcp_server.a\n"
 	@ cd src/tcp_server/ && ${MAKE}
+	@ echo 
+
+.PHONY: librpc.a
+librpc.a:
+	@ printf "building librpc.a\n"
+	@ cd src/rpclib/ && ${MAKE}
+	@ echo
 
 .PHONY: clean
 clean:
-	rm -rf src/**/*.o src/**/*.a
+	@ cd src/tcp_server && ${MAKE} clean
+	@ cd src/rpclib && ${MAKE} clean

@@ -3,6 +3,7 @@ httpserver
 *.log
 *.a
 *.dSYM
+.DS_Store
 
 # Lab 3
 tcp_echo_client
