@@ -14,9 +14,9 @@ else
 	endif
 endif
 
-HEADERS = src/command.hpp
-SOURCES = src/command.cpp
-OBJECTS = src/command.o
+HEADERS = src/common.hpp src/command.hpp src/command_parser.hpp
+SOURCES = src/command.cpp src/command_parser.cpp
+OBJECTS = src/command.o src/command_parser.o
 
 all: librpc.a libtcp_server.a ${OBJECTS}
 	@ echo build OK

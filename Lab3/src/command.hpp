@@ -23,6 +23,7 @@ class command {
 public:
     /// Ctor.
     command(command_type type = command_type::UNKNOWN) : type(type) {}
+    virtual ~command() = default;
 
     /// Tag
     command_type type = command_type::UNKNOWN;
@@ -37,10 +38,10 @@ class get_command : public command {
 public:
     /// Ctors.
     get_command();
-    get_command(std::string const &key);
+    get_command(std::string &&key);
     get_command(const get_command &);
     get_command(get_command &&);
-    ~get_command() = default;
+    virtual ~get_command() = default;
 
     /// Assignment.
     get_command& operator=(const get_command&);
@@ -62,10 +63,10 @@ class set_command : public command {
 public:
     /// Ctors.
     set_command();
-    set_command(std::string const &key, std::string const &value);
+    set_command(std::string &&key, std::string &&value);
     set_command(const set_command&);
     set_command(set_command&&);
-    ~set_command() = default;
+    virtual ~set_command() = default;
 
     /// Assignment.
     set_command& operator=(const set_command&);
@@ -89,10 +90,10 @@ class del_command : public command {
 public:
     /// Ctors.
     del_command();
-    del_command(std::vector<std::string> const&args);
+    del_command(std::vector<std::string> &&args);
     del_command(const del_command&);
     del_command(del_command&&);
-    ~del_command() = default;
+    virtual ~del_command() = default;
 
     /// Assignment.
     del_command& operator=(const del_command&);

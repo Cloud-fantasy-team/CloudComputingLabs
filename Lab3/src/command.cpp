@@ -9,6 +9,9 @@ GET command
 get_command::get_command()
     : command(command_type::GET) {}
 
+get_command::get_command(std::string &&key)
+    : command(command_type::GET), key_(std::move(key)) {}
+
 get_command::get_command(const get_command &cmd)
     : command(cmd.type), key_(cmd.key_) {}
 
@@ -46,7 +49,10 @@ SET command.
 */
 
 set_command::set_command()
-    : command(command_type::UNKNOWN) {}
+    : command(command_type::SET) {}
+
+set_command::set_command(std::string &&key, std::string &&value)
+    : command(command_type::SET), key_(std::move(key)), value_(std::move(value)) {}
 
 set_command::set_command(const set_command &cmd)
     : command(cmd.type), key_(cmd.key_), value_(cmd.value_) {}
@@ -88,7 +94,10 @@ DEL command.
 */
 
 del_command::del_command()
-    : command(command_type::UNKNOWN) {}
+    : command(command_type::DEL) {}
+
+del_command::del_command(std::vector<std::string> &&keys)
+    : command(command_type::DEL), keys_(std::move(keys)) {}
 
 del_command::del_command(const del_command &cmd)
     : command(cmd.type), keys_(cmd.keys_) {}
