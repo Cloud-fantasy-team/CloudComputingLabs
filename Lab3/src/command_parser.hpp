@@ -5,9 +5,6 @@
 #ifndef COMMAND_PARSER_HPP
 #define COMMAND_PARSER_HPP
 
-#include <condition_variable>
-#include <functional>
-#include <mutex>
 #include <string>
 #include <vector>
 #include "command.hpp"

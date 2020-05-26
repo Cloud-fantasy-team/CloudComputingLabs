@@ -27,10 +27,9 @@ DEP_HEADERS = $(shell find ${RPCLIB_DEPENDENCIES}/include/*.h)
 DEP_SOURCES = ${RPCLIB_DEPENDENCIES}/src/format.cc \
 	${RPCLIB_DEPENDENCIES}/src/posix.cc
 
-HEADERS = $(shell find include/**/*.h)
+HEADERS := $(shell find include/**/*.h)
 HEADERS += $(shell find include/**/*.hpp)
 
-SOURCE_DIR = lib/rpc
 SOURCES = lib/rpc/dispatcher.cc			\
   	lib/rpc/server.cc					\
   	lib/rpc/client.cc					\
@@ -43,7 +42,6 @@ SOURCES = lib/rpc/dispatcher.cc			\
   	lib/rpc/detail/client_error.cc		\
   	lib/rpc/nonstd/optional.cc
 
-BUILD_DIR = my_make_build
 OBJECTS = ${patsubst %.cc,%.o,${SOURCES}}
 OBJECTS += ${patsubst %.cc,%.o,${DEP_SOURCES}}
 
