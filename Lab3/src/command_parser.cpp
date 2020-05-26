@@ -40,9 +40,9 @@ std::unique_ptr<command> command_parser::read_command()
 
     switch (type)
     {
-        case command_type::GET: return read_get_command(num_elem);
-        case command_type::SET: return read_set_command(num_elem);
-        case command_type::DEL: return read_del_command(num_elem);
+        case CMD_GET: return read_get_command(num_elem);
+        case CMD_SET: return read_set_command(num_elem);
+        case CMD_DEL: return read_del_command(num_elem);
         default:
             __PARSER_THROW("unregconized command");
     }
@@ -76,11 +76,11 @@ command_type command_parser::read_command_type()
 {
     std::string type_str = read_bulk_string();
     if (type_str == "GET")
-        return command_type::GET;
+        return CMD_GET;
     if (type_str == "SET")
-        return command_type::SET;
+        return CMD_SET;
     if (type_str == "DEL")
-        return command_type::DEL;
+        return CMD_DEL;
 
     __PARSER_THROW("unknown command type");
 }

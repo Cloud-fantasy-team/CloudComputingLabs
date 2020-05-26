@@ -7,30 +7,38 @@
 
 #include <string>
 #include <vector>
+#include "rpc/msgpack.hpp"
 
 namespace simple_kv_store {
 
 /// Tags.
-enum class command_type : uint8_t {
-    GET,
-    SET,
-    DEL,
-    UNKNOWN
-};
+typedef uint8_t command_type;
+const command_type CMD_GET = 0;
+const command_type CMD_SET = 1;
+const command_type CMD_DEL = 2;
+const command_type CMD_UNKNOWN = 3;
+// enum class command_type : uint8_t {
+//     GET,
+//     SET,
+//     DEL,
+//     UNKNOWN
+// };
 
 /// Base command class.
 class command {
 public:
     /// Ctor.
-    command(command_type type = command_type::UNKNOWN) : type(type) {}
+    command(command_type type = CMD_UNKNOWN) : type(type) {}
     virtual ~command() = default;
 
     /// Tag
-    command_type type = command_type::UNKNOWN;
+    command_type type = CMD_UNKNOWN;
 
     /// Returns the args of this command. 
     /// NOTE: all args are serialized as std::string.
     virtual std::vector<std::string> args() = 0;
+
+    MSGPACK_DEFINE_ARRAY(type);
 };
 
 /// GET key
@@ -52,6 +60,8 @@ public:
     const std::string &key() const { return key_; }
 
     virtual std::vector<std::string> args() override;
+
+    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), key_)
 
 private:
     /// Key into the store.
@@ -80,6 +90,8 @@ public:
 
     virtual std::vector<std::string> args() override;
 
+    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), key_, value_)
+
 private:
     std::string key_;
     std::string value_;
@@ -102,6 +114,8 @@ public:
     void set_keys(std::vector<std::string> const &keys) { keys_ = keys; }
 
     virtual std::vector<std::string> args() override;
+
+    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), keys_);
 
 private:
     std::vector<std::string> keys_;

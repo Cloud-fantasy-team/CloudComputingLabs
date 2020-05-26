@@ -1,5 +1,6 @@
 CXX ?= g++
 CXXFLAGS += -pthread -std=c++11
+INCLUDE_PATH = -Ithird_party/rpclib/include -I/third_party/leveldb/include
 
 OS := ""
 UNAME = $(shell uname -s)
@@ -22,7 +23,7 @@ all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leve
 	@ echo build OK
 
 %.o: %.cpp ${HEADERS}
-	${CXX} -c ${CXXFLAGS} -o $@ $<
+	${CXX} -c ${CXXFLAGS} ${INCLUDE_PATH} -o $@ $<
 
 src/tcp_server/libtcp_server.a:
 	@ printf "building libtcp_server.a\n"
