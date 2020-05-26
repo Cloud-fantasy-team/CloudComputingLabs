@@ -1,3 +1,6 @@
+CXX ?= g++
+CXXFLAGS += -pthread -std=c++11
+
 OS := ""
 UNAME = $(shell uname -s)
 
@@ -11,8 +14,15 @@ else
 	endif
 endif
 
-all: librpc.a libtcp_server.a
+HEADERS = src/command.hpp
+SOURCES = src/command.cpp
+OBJECTS = src/command.o
+
+all: librpc.a libtcp_server.a ${OBJECTS}
 	@ echo build OK
+
+%.o: %.cpp ${HEADERS}
+	${CXX} -c ${CXXFLAGS} -o $@ $<
 
 .PHONY: libtcp_server.a
 libtcp_server.a:
@@ -30,3 +40,4 @@ librpc.a:
 clean:
 	@ cd src/tcp_server && ${MAKE} clean
 	@ cd third_party/rpclib && ${MAKE} clean
+	@ rm ${OBJECTS}
