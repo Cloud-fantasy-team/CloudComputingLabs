@@ -33,11 +33,13 @@ private:
     /// 2PC.
     /// Different types of update RPCs are handled by different objects.
     /// NOTE: we'll only run 2PC on update commands.
+    struct get_handler_t;
     struct prepare_set_t;
     struct prepare_del_t;
     struct commit_handler_t;
     struct abort_handler_t;
 
+    friend get_handler_t;
     friend prepare_set_t;
     friend prepare_del_t;
     friend commit_handler_t;
@@ -57,6 +59,7 @@ private:
     rpc::server svr_;
 
     /// The actual handlers.
+    get_handler_t *get_handler_;
     prepare_set_t *prepare_set_;
     prepare_del_t *prepare_del_;
     commit_handler_t *commit_handler_;

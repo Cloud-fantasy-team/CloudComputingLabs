@@ -94,10 +94,14 @@ command_parser::read_get_command(std::size_t num_elem)
     /// Read the key.
     std::stringstream key_stream;
     key_stream << read_bulk_string();
+    expect_separator();
 
     /// NOTE: If there are more than one string, we'll concatenate them as a single key.
-    for (std::size_t i = 1; i < num_elem; i++)
+    for (std::size_t i = 2; i < num_elem; i++)
+    {
         key_stream << " " << read_bulk_string();
+        expect_separator();
+    }
 
     std::string key = key_stream.str();
     std::unique_ptr<command> get_cmd{ new get_command(std::move(key)) };
@@ -112,14 +116,19 @@ command_parser::read_set_command(std::size_t num_elem)
 
     /// NOTE: Wasn't mine idea.
     std::string key = read_bulk_string();
+    expect_separator();
 
     /// Read the value.
     std::stringstream value_stream;
     value_stream << read_bulk_string();
+    expect_separator();
 
     /// NOTE: if there are more than one string, we'll concatenate them as a single value.
-    for (std::size_t i = 2; i < num_elem; i++)
-        value_stream << read_bulk_string();
+    for (std::size_t i = 3; i < num_elem; i++)
+    {
+        value_stream << " " << read_bulk_string();
+        expect_separator();
+    }
 
     std::string value = value_stream.str();
     std::unique_ptr<command> set_cmd{ new set_command{std::move(key), std::move(value)} };
@@ -135,9 +144,13 @@ command_parser::read_del_command(std::size_t num_elem)
     /// Consume as many keys as we can.
     std::vector<std::string> keys;
     keys.push_back(read_bulk_string());
+    expect_separator();
 
-    for (std::size_t i = 1; i < num_elem; i++)
+    for (std::size_t i = 2; i < num_elem; i++)
+    {
         keys.push_back(read_bulk_string());
+        expect_separator();
+    }
 
     std::unique_ptr<command> del_cmd{ new del_command{ std::move(keys) } };
     return del_cmd;

@@ -10,3 +10,4 @@ tcp_echo_client
 tcp_echo_server
 kvstore2pcsystem
 test_rpc
+test_command_parser

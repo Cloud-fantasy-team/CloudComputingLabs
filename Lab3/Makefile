@@ -20,14 +20,17 @@ HEADERS = src/common.hpp src/command.hpp src/command_parser.hpp src/message.hpp 
 SOURCES = src/command.cpp src/command_parser.cpp src/message.cpp src/errors.cpp src/participant.cpp
 OBJECTS = src/command.o src/command_parser.o src/message.o src/errors.o src/participant.o
 
-all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leveldb/libleveldb.a kvstore2pcsystem
+EXECS = kvstore2pcsystem test_rpc test_command_parser
+
+all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leveldb/libleveldb.a ${EXECS}
 	@ echo build OK
 
-test_rpc: src/test_rpc.o ${OBJECTS}
+
+%: src/%.o ${OBJECTS}
 	${CXX} ${CXXFLAGS} -Lsrc/tcp_server -Lthird_party/rpclib -Lthird_party/leveldb -o $@ $^ -ltcp_server -lrpc -lleveldb
 
-kvstore2pcsystem: src/kvstore2pcsystem.o ${OBJECTS}
-	${CXX} ${CXXFLAGS} -Lsrc/tcp_server -Lthird_party/rpclib -Lthird_party/leveldb -o $@ $^ -ltcp_server -lrpc -lleveldb
+# kvstore2pcsystem: src/kvstore2pcsystem.o ${OBJECTS}
+# 	${CXX} ${CXXFLAGS} -Lsrc/tcp_server -Lthird_party/rpclib -Lthird_party/leveldb -o $@ $^ -ltcp_server -lrpc -lleveldb
 
 %.o: %.cpp ${HEADERS}
 	${CXX} -c ${CXXFLAGS} ${INCLUDE_PATH} -o $@ $<

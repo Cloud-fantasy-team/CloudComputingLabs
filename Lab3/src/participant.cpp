@@ -6,6 +6,20 @@
 namespace simple_kv_store {
 
 /// pimpl
+struct participant::get_handler_t {
+    get_handler_t(participant &p)
+        : p_(p) {}
+
+    /// Simply return the results.
+    std::string operator()(db_get_request req)
+    {
+        return "";
+    }
+
+    participant &p_;
+};
+
+/// pimpl
 /// Append the request to participents pending requests list.
 struct participant::prepare_set_t {
     prepare_set_t(participant &p)
@@ -139,8 +153,14 @@ struct participant::commit_handler_t {
         std::vector<std::string> keys = cmd->args();
         for (std::string &key : keys)
         {
-            auto status = p_.db_->Delete(leveldb::WriteOptions(), key);
-            if (status.ok())    count++;
+            leveldb::Status status;
+            std::string value;
+            bool exists = false;
+            status = p_.db_->Get(leveldb::ReadOptions(), key, &value);
+            exists = status.ok();
+
+            status = p_.db_->Delete(leveldb::WriteOptions(), key);
+            if (status.ok() && exists)    count++;
         }
 
         if (count == 0)
@@ -195,6 +215,7 @@ participant::participant(const std::string &ip,
                          uint16_t port, 
                          const std::string & storage_path)
     : svr_(ip, port)
+    , get_handler_(new participant::get_handler_t(*this))
     , prepare_set_(new participant::prepare_set_t(*this))
     , prepare_del_(new participant::prepare_del_t(*this))
     , commit_handler_(new participant::commit_handler_t(*this))
@@ -212,6 +233,7 @@ participant::participant(const std::string &ip,
     /// Bind 2PC functionalities.
     /// NOTE: the handler throws server_error and crashes if it reaches an inconsistent
     /// state, which is usually caused by failure of coordinator.
+    svr_.bind("get", *get_handler_);
     svr_.bind("prepare_set", *prepare_set_);
     svr_.bind("prepare_del", *prepare_del_);
     svr_.bind("commit", *commit_handler_);
