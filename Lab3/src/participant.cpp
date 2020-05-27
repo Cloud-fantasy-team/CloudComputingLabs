@@ -82,7 +82,7 @@ struct participant::commit_handler_t {
         {
             auto iter = p_.db_requests_.begin();
             // We assume coordinator never fails.
-            if (iter->req_id != p_.next_id_)
+            if (iter->req_id != p_.next_id_ && p_.next_id_ != -1)
                 __SERVER_THROW("inconsistent state");
 
             // Dispatching.
@@ -94,7 +94,10 @@ struct participant::commit_handler_t {
             
             /// Update bookkeeping info.
             p_.db_requests_.erase(p_.db_requests_.begin());
-            p_.next_id_ = p_.db_requests_.begin()->req_id;
+            if (!p_.db_requests_.empty())
+                p_.next_id_ = p_.db_requests_.begin()->req_id;
+            else
+                p_.next_id_ = -1;
 
             return ret;
         }
@@ -160,7 +163,7 @@ struct participant::abort_handler_t {
     abort_handler_t(participant &p)
         : p_(p) {}
 
-    /// Aborts a request with [id] as req_id.
+    /// Aborts a request with [id].
     bool operator()(std::size_t id)
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
@@ -173,7 +176,10 @@ struct participant::abort_handler_t {
         {
             /// Upate bookkeeping info.
             p_.db_requests_.erase(p_.db_requests_.begin());
-            p_.next_id_ = p_.db_requests_.begin()->req_id;
+            if (!p_.db_requests_.empty())
+                p_.next_id_ = p_.db_requests_.begin()->req_id;
+            else
+                p_.next_id_ = -1;
 
             return true;
         }
