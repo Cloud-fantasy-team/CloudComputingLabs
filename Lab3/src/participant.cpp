@@ -1,9 +1,14 @@
+#include <sstream>
 #include <chrono>
 #include <unordered_map>
+#include "command_parser.hpp"
 #include "errors.hpp"
 #include "participant.hpp"
 
 namespace simple_kv_store {
+
+const std::string participant::error_string = "-ERROR\r\n";
+const std::string participant::update_ok_string = "+OK\r\n";
 
 /// pimpl
 struct participant::get_handler_t {
@@ -13,7 +18,37 @@ struct participant::get_handler_t {
     /// Simply return the results.
     std::string operator()(db_get_request req)
     {
-        return "";
+        std::string key = req.cmd.key();
+        std::string value;
+        leveldb::Status status = p_.db_->Get(leveldb::ReadOptions(), key, &value);
+
+        if (status.ok())
+            return encode_result(value);
+        else
+            return participant::error_string;
+    }
+
+    /// Encode result in RESP format.
+    std::string encode_result(std::string const &value)
+    {
+        std::stringstream ss(value);
+        std::string token;
+
+        std::stringstream ret;
+        std::size_t count = 0;
+        while (std::getline(ss, token, ' '))
+        {
+            count++;
+            ret << encode_bulk_string(token);
+        }
+        return "*" + std::to_string(count) + command_parser::separator + ret.str();
+    }
+
+    inline std::string encode_bulk_string(std::string const &str)
+    {
+        std::string bulk{"$" + std::to_string(str.length()) + 
+                        command_parser::separator + str + command_parser::separator};
+        return bulk;
     }
 
     participant &p_;
@@ -81,6 +116,10 @@ struct participant::commit_handler_t {
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
+        /// Not initialized yet.
+        if (p_.next_id_ == -1)
+            return participant::error_string;
+
         // We have reached to an inconsistent state.
         if (p_.db_requests_.empty())
             __SERVER_THROW("inconsistent state");
@@ -88,15 +127,15 @@ struct participant::commit_handler_t {
         /// Wait until all requests before this requests to be either
         /// committed or aborted.
         /// NOTE: we'll wait for 10 seconds.
-        if (p_.next_id_ != -1 && p_.next_id_ < id)
+        if (p_.next_id_ < id)
             p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]{ return p_.next_id_ == id; });
 
         // Handle normal cases.
-        if (p_.next_id_ == id || p_.next_id_ == -1)
+        if (p_.next_id_ == id)
         {
             auto iter = p_.db_requests_.begin();
             // We assume coordinator never fails.
-            if (iter->req_id != p_.next_id_ && p_.next_id_ != -1)
+            if (iter->req_id != p_.next_id_)
                 __SERVER_THROW("inconsistent state");
 
             // Dispatching.
@@ -108,11 +147,9 @@ struct participant::commit_handler_t {
             
             /// Update bookkeeping info.
             p_.db_requests_.erase(p_.db_requests_.begin());
-            if (!p_.db_requests_.empty())
-                p_.next_id_ = p_.db_requests_.begin()->req_id;
-            else
-                p_.next_id_ = -1;
+            p_.next_id_.fetch_add(1);
 
+            p_.db_request_cond_.notify_all();
             return ret;
         }
         else
@@ -136,9 +173,9 @@ struct participant::commit_handler_t {
         /// Deliver to leveldb.
         auto status = p_.db_->Put(leveldb::WriteOptions(), key, value);
         if (status.ok())
-            return "+OK\r\n";
+            return participant::update_ok_string;
         else
-            return "-ERROR\r\n";
+            return participant::error_string;
     }
 
     /// Handle DEL key1 key2 key3 key4 ... cmd.
@@ -164,7 +201,7 @@ struct participant::commit_handler_t {
         }
 
         if (count == 0)
-            return "-ERROR\r\n";
+            return participant::error_string;
 
         // RESP integer, representing the number of elems deleted.
         std::string ret = ":" + std::to_string(count) + "\r\n";
@@ -189,23 +226,34 @@ struct participant::abort_handler_t {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
         /// Same as commit.
-        if (p_.next_id_ != -1 && p_.next_id_ != id)
+        if (p_.next_id_ != id)
             p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]() { return p_.next_id_ == id; });
 
-        if (p_.next_id_ == -1 || p_.next_id_ == id)
+        if (p_.next_id_ == id)
         {
             /// Upate bookkeeping info.
             p_.db_requests_.erase(p_.db_requests_.begin());
-            if (!p_.db_requests_.empty())
-                p_.next_id_ = p_.db_requests_.begin()->req_id;
-            else
-                p_.next_id_ = -1;
+            p_.next_id_.fetch_add(1);
 
+            p_.db_request_cond_.notify_all();
             return true;
         }
         else
             /// Inconsistent state.
             __SERVER_THROW("inconsistent state");
+    }
+
+    participant &p_;
+};
+
+struct participant::set_initial_next_id_handler_t {
+    set_initial_next_id_handler_t(participant &p)
+        : p_(p) {}
+
+    bool operator()(ssize_t val)
+    {
+        ssize_t zero = 0;
+        return p_.next_id_.compare_exchange_strong(zero, val);
     }
 
     participant &p_;
@@ -220,6 +268,7 @@ participant::participant(const std::string &ip,
     , prepare_del_(new participant::prepare_del_t(*this))
     , commit_handler_(new participant::commit_handler_t(*this))
     , abort_handler_(new participant::abort_handler_t(*this))
+    , initial_next_id_(new participant::set_initial_next_id_handler_t(*this))
     , db_(nullptr)
 {
     leveldb::Options options;
@@ -238,6 +287,7 @@ participant::participant(const std::string &ip,
     svr_.bind("prepare_del", *prepare_del_);
     svr_.bind("commit", *commit_handler_);
     svr_.bind("abort", *abort_handler_);
+    svr_.bind("initial_next_id", *initial_next_id_);
 }
 
 participant::~participant()
@@ -247,11 +297,13 @@ participant::~participant()
     delete prepare_del_;
     delete commit_handler_;
     delete abort_handler_;
+    delete initial_next_id_;
 }
 
 void participant::start()
 {
-    svr_.run();
+    svr_.async_run(2);
+    std::cin.ignore();
 }
 
 }    // namespace simple_kv_store

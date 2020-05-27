@@ -38,12 +38,17 @@ private:
     struct prepare_del_t;
     struct commit_handler_t;
     struct abort_handler_t;
+    struct set_initial_next_id_handler_t;
 
     friend get_handler_t;
     friend prepare_set_t;
     friend prepare_del_t;
     friend commit_handler_t;
     friend abort_handler_t;
+    friend set_initial_next_id_handler_t;
+
+    static const std::string error_string;
+    static const std::string update_ok_string;
 
 private:
     /// Comparator.
@@ -64,12 +69,17 @@ private:
     prepare_del_t *prepare_del_;
     commit_handler_t *commit_handler_;
     abort_handler_t *abort_handler_;
+    set_initial_next_id_handler_t *initial_next_id_;
 
-    /// TODO: change this to an LRU?
     /// Pending requests.
     std::set<db_request, db_request_cmp> db_requests_;
-    /// Next request id to be handled.
-    std::atomic<ssize_t> next_id_ = ATOMIC_VAR_INIT(-1);
+
+    /// Monotonically increasing number. We'll use 1 as increment.
+    /// The coordinator must assign ids correctly.
+    /// The coordinator must rpc "initial_next_id" to set it.
+    /// If the coordinator doesn't rpc "initial_next_id", participant will use the
+    /// 0 as the initial next_id_.
+    std::atomic<ssize_t> next_id_ = ATOMIC_VAR_INIT(0);
 
     /// Synchronization.
     std::mutex db_request_mutex_;
