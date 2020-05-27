@@ -8,7 +8,7 @@
 #include "rpc/client.h"
 using namespace simple_kv_store;
 
-std::mutex mutex;
+// Single threaded. No need to synchronize.
 std::vector<std::future<clmdep_msgpack::object_handle>> futures;
 
 void make_set_rpc(db_set_request req, rpc::client &client)
@@ -18,7 +18,6 @@ void make_set_rpc(db_set_request req, rpc::client &client)
         if (ok)
         {
             auto future = client.async_call("commit", req.req_id);
-            std::unique_lock<std::mutex> lock(mutex);
             futures.emplace_back(std::move(future));
         }
         else
@@ -45,7 +44,6 @@ void make_del_rpc(db_del_request req, rpc::client &client)
         if (ok)
         {
             auto future = client.async_call("commit", req.req_id);
-            std::unique_lock<std::mutex> lock(mutex);
             futures.emplace_back(std::move(future));
         }
         else
