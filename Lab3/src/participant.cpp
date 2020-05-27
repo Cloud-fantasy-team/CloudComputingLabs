@@ -117,10 +117,6 @@ struct participant::commit_handler_t {
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
-        /// Not initialized yet.
-        if (p_.next_id_ == -1)
-            return participant::error_string;
-
         // We have reached to an inconsistent state.
         if (p_.db_requests_.empty())
             __SERVER_THROW("inconsistent state");
