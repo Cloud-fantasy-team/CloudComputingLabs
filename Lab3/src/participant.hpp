@@ -14,6 +14,7 @@
 #include "leveldb/db.h"
 #include "rpc/server.h"
 #include "message.hpp"
+#include "configuration.hpp"
 
 namespace simple_kv_store {
 
@@ -21,24 +22,24 @@ namespace simple_kv_store {
 class participant {
 public:
     /// ctors.
-    participant(const std::string &ip, 
-                uint16_t port, 
-                const std::string &storage_path = "/tmp/testdb");
+    participant(std::unique_ptr<participant_configuration> conf);
 
     ~participant();
 
     void start();
 
+    static const std::string error_string;
+    static const std::string update_ok_string;
+
 private:
-    /// 2PC.
-    /// Different types of update RPCs are handled by different objects.
-    /// NOTE: we'll only run 2PC on update commands.
+    /// RPC handler types.
     struct get_handler_t;
     struct prepare_set_t;
     struct prepare_del_t;
     struct commit_handler_t;
     struct abort_handler_t;
     struct set_initial_next_id_handler_t;
+    struct get_snapshot_t;
 
     friend get_handler_t;
     friend prepare_set_t;
@@ -46,9 +47,7 @@ private:
     friend commit_handler_t;
     friend abort_handler_t;
     friend set_initial_next_id_handler_t;
-
-    static const std::string error_string;
-    static const std::string update_ok_string;
+    friend get_snapshot_t;
 
 private:
     /// Comparator.
@@ -59,6 +58,8 @@ private:
             return lhs.req_id < rhs.req_id;
         }
     };
+
+    std::unique_ptr<participant_configuration> conf_;
 
     /// The actual server for responding RPCs.
     rpc::server svr_;

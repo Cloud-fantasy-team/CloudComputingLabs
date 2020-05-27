@@ -8,13 +8,10 @@ namespace simple_kv_store {
 std::string command_parser::separator = "\r\n";
 
 command_parser::command_parser(std::vector<char> &&data)
-    : data_(std::move(data)), idx_(0) {}
+    : data_(std::move(data)), idx_(0), start_idx_(0) {}
 
 command_parser::command_parser(command_parser &&cmd_parser)
-    : data_(std::move(cmd_parser.data_)), idx_(cmd_parser.idx_)
-{
-    data_.reserve(PARSER_BUFF_SIZE); 
-}
+    : data_(std::move(cmd_parser.data_)), idx_(cmd_parser.idx_), start_idx_(cmd_parser.start_idx_) {}
 
 command_parser& command_parser::operator=(command_parser &&cmd_parser)
 {
@@ -25,8 +22,16 @@ command_parser& command_parser::operator=(command_parser &&cmd_parser)
     return *this;
 }
 
+bool command_parser::is_done()
+{
+    return (idx_ == data_.size());
+}
+
 std::unique_ptr<command> command_parser::read_command()
 {
+    // Record starting index.
+    start_idx_ = idx_;
+
     // Must be a RESP array.
     expect_char('*');
 
@@ -44,7 +49,7 @@ std::unique_ptr<command> command_parser::read_command()
         case CMD_SET: return read_set_command(num_elem);
         case CMD_DEL: return read_del_command(num_elem);
         default:
-            __PARSER_THROW("unregconized command");
+            __PARSER_THROW_SYNTAX("unregconized command");
     }
 
     return nullptr;
@@ -69,7 +74,7 @@ std::size_t command_parser::read_num_elem()
         std::size_t num = std::stol(num_str);
 
         return num;
-    } catch (std::exception &e) { __PARSER_THROW("error read_num_elem"); }
+    } catch (std::exception &e) { __PARSER_THROW_SYNTAX("error read_num_elem"); }
 }
 
 command_type command_parser::read_command_type()
@@ -82,14 +87,14 @@ command_type command_parser::read_command_type()
     if (type_str == "DEL")
         return CMD_DEL;
 
-    __PARSER_THROW("unknown command type");
+    __PARSER_THROW_SYNTAX("unknown command type");
 }
 
 std::unique_ptr<command>
 command_parser::read_get_command(std::size_t num_elem)
 {
     if (num_elem == 0)
-        __PARSER_THROW("mismatching args");
+        __PARSER_THROW_SYNTAX("mismatching args");
 
     /// Read the key.
     std::stringstream key_stream;
@@ -112,7 +117,7 @@ std::unique_ptr<command>
 command_parser::read_set_command(std::size_t num_elem)
 {
     if (num_elem < 2)
-        __PARSER_THROW("missing args");
+        __PARSER_THROW_SYNTAX("missing args");
 
     /// NOTE: Wasn't mine idea.
     std::string key = read_bulk_string();
@@ -139,7 +144,7 @@ std::unique_ptr<command>
 command_parser::read_del_command(std::size_t num_elem)
 {
     if (num_elem == 0)
-        __PARSER_THROW("mising args");
+        __PARSER_THROW_SYNTAX("mising args");
 
     /// Consume as many keys as we can.
     std::vector<std::string> keys;
@@ -177,18 +182,18 @@ void command_parser::expect_char(char ch, const std::string &msg)
 {
     char c = read_char();
     if (c != ch)
-        __PARSER_THROW(msg);
+        __PARSER_THROW_SYNTAX(msg);
 }
 
 void command_parser::expect_separator()
 {
     char c = read_char();
     if (c != '\r')
-        __PARSER_THROW("expect separator");
+        __PARSER_THROW_SYNTAX("expect separator");
 
     c = read_char();
     if (c != '\n')
-        __PARSER_THROW("expect separator");
+        __PARSER_THROW_SYNTAX("expect separator");
 }
 
 char command_parser::read_char()
@@ -204,12 +209,12 @@ char command_parser::peek_char()
     /// Buffer is empty.
     if (data_.empty())
     {
-        __PARSER_THROW("fail reading from client");
+        __PARSER_THROW_INCOMPLETE("fail reading from client");
     }
     /// Buffer is full. Discard all data consumed.
     else if (idx_ == data_.size())
     {
-        __PARSER_THROW("incomplete command");
+        __PARSER_THROW_INCOMPLETE("incomplete command");
     }
 
     return data_[idx_];

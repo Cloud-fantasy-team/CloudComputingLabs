@@ -41,6 +41,9 @@ public:
     /// Read a command from the given data.
     std::unique_ptr<command> read_command();
 
+    /// Indicating whether parser is done.
+    bool is_done();
+
 public:
     /// "\r\n" as default separator.
     static std::string separator;
@@ -72,6 +75,9 @@ private:
     /// Buffer for data from [client_].
     std::vector<char> data_;
     std::size_t idx_;
+
+    /// Starting index of a command.
+    std::size_t start_idx_;
 };
 
 }    // namespace simple_kv_store

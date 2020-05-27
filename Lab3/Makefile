@@ -16,24 +16,20 @@ else
 	endif
 endif
 
-HEADERS = src/common.hpp src/command.hpp src/command_parser.hpp src/message.hpp src/errors.hpp src/participant.hpp
-SOURCES = src/command.cpp src/command_parser.cpp src/message.cpp src/errors.cpp src/participant.cpp
-OBJECTS = src/command.o src/command_parser.o src/message.o src/errors.o src/participant.o
+HEADERS = src/configuration.hpp src/common.hpp src/command.hpp src/command_parser.hpp src/message.hpp src/errors.hpp src/participant.hpp src/coordinator.hpp
+SOURCES = src/command.cpp src/command_parser.cpp src/message.cpp src/errors.cpp src/participant.cpp src/coordinator.cpp
+OBJECTS = src/command.o src/command_parser.o src/message.o src/errors.o src/participant.o src/coordinator.o
 
 EXECS = kvstore2pcsystem test_rpc test_command_parser
 
 all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leveldb/libleveldb.a ${EXECS}
 	@ echo build OK
 
+%.o: %.cpp ${HEADERS}
+	${CXX} -c ${CXXFLAGS} ${INCLUDE_PATH} -o $@ $<
 
 %: src/%.o ${OBJECTS}
 	${CXX} ${CXXFLAGS} -Lsrc/tcp_server -Lthird_party/rpclib -Lthird_party/leveldb -o $@ $^ -ltcp_server -lrpc -lleveldb
-
-# kvstore2pcsystem: src/kvstore2pcsystem.o ${OBJECTS}
-# 	${CXX} ${CXXFLAGS} -Lsrc/tcp_server -Lthird_party/rpclib -Lthird_party/leveldb -o $@ $^ -ltcp_server -lrpc -lleveldb
-
-%.o: %.cpp ${HEADERS}
-	${CXX} -c ${CXXFLAGS} ${INCLUDE_PATH} -o $@ $<
 
 src/tcp_server/libtcp_server.a:
 	@ printf "building libtcp_server.a\n"

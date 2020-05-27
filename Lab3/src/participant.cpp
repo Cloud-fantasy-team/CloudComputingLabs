@@ -1,4 +1,3 @@
-#include <iostream>
 #include <sstream>
 #include <chrono>
 #include <unordered_map>
@@ -26,7 +25,7 @@ struct participant::get_handler_t {
         if (status.ok())
             return encode_result(value);
         else
-            return participant::error_string;
+            return encode_result("nil");
     }
 
     /// Encode result in RESP format.
@@ -123,16 +122,19 @@ struct participant::commit_handler_t {
 
         /// Wait until all requests before this requests to be either
         /// committed or aborted.
-        /// NOTE: we'll wait for 10 seconds.
+        /// The reason that iter->req_id != p_.next_id_ holds is because
+        /// the coordinator is capable of sending at most as many as the
+        /// number of callback worker threads that the participants have.
+        /// NOTE: we'll wait for 200 milli-seconds.
         if (p_.next_id_ < id)
-            p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]{ return p_.next_id_ == id; });
+            p_.db_request_cond_.wait_for(lock, std::chrono::microseconds{200}, [&]{ return p_.next_id_ == id; });
 
         // Handle normal cases.
         if (p_.next_id_ == id)
         {
             auto iter = p_.db_requests_.begin();
-            // We assume coordinator never fails.
             if (iter->req_id != p_.next_id_)
+                /// Coordinator's malfunctioning.
                 __SERVER_THROW("inconsistent state");
 
             // Dispatching.
@@ -256,10 +258,9 @@ struct participant::set_initial_next_id_handler_t {
     participant &p_;
 };
 
-participant::participant(const std::string &ip, 
-                         uint16_t port, 
-                         const std::string & storage_path)
-    : svr_(ip, port)
+participant::participant(std::unique_ptr<participant_configuration> conf)
+    : conf_(std::move(conf))
+    , svr_(conf_->addr, conf_->port)
     , get_handler_(new participant::get_handler_t(*this))
     , prepare_set_(new participant::prepare_set_t(*this))
     , prepare_del_(new participant::prepare_del_t(*this))
@@ -270,9 +271,8 @@ participant::participant(const std::string &ip,
 {
     leveldb::Options options;
     options.create_if_missing = true;
-    auto status = leveldb::DB::Open(options, storage_path, &db_);
+    auto status = leveldb::DB::Open(options, conf_->storage_path, &db_);
 
-    /// TODO: fix this.
     if (!status.ok())
         __SERVER_THROW("unable to open storage");
 
@@ -299,8 +299,7 @@ participant::~participant()
 
 void participant::start()
 {
-    svr_.async_run(2);
-    std::cin.ignore();
+    svr_.async_run(conf_->num_worker);
 }
 
 }    // namespace simple_kv_store
