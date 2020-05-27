@@ -15,12 +15,15 @@ else
 	endif
 endif
 
-HEADERS = src/common.hpp src/command.hpp src/command_parser.hpp
-SOURCES = src/command.cpp src/command_parser.cpp
-OBJECTS = src/command.o src/command_parser.o
+HEADERS = src/common.hpp src/command.hpp src/command_parser.hpp src/message.hpp src/errors.hpp src/participant.hpp src/kvstore2pcsystem.cpp
+SOURCES = src/command.cpp src/command_parser.cpp src/message.cpp src/errors.cpp src/participant.cpp
+OBJECTS = src/command.o src/command_parser.o src/message.o src/errors.o src/participant.o src/kvstore2pcsystem.o
 
-all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leveldb/libleveldb.a ${OBJECTS}
+all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leveldb/libleveldb.a kvstore2pcsystem
 	@ echo build OK
+
+kvstore2pcsystem: ${OBJECTS}
+	${CXX} ${CXXFLAGS} -Lsrc/tcp_server -Lthird_party/rpclib -Lthird_party/leveldb -o $@ $^ -ltcp_server -lrpc -lleveldb
 
 %.o: %.cpp ${HEADERS}
 	${CXX} -c ${CXXFLAGS} ${INCLUDE_PATH} -o $@ $<

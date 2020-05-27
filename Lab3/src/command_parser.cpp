@@ -1,5 +1,5 @@
 #include <sstream>
-#include "parse_error.hpp"
+#include "errors.hpp"
 #include "common.hpp"
 #include "command_parser.hpp"
 

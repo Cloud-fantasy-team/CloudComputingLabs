@@ -17,12 +17,6 @@ const command_type CMD_GET = 0;
 const command_type CMD_SET = 1;
 const command_type CMD_DEL = 2;
 const command_type CMD_UNKNOWN = 3;
-// enum class command_type : uint8_t {
-//     GET,
-//     SET,
-//     DEL,
-//     UNKNOWN
-// };
 
 /// Base command class.
 class command {
@@ -38,6 +32,7 @@ public:
     /// NOTE: all args are serialized as std::string.
     virtual std::vector<std::string> args() = 0;
 
+    // Make it serializable.
     MSGPACK_DEFINE_ARRAY(type);
 };
 

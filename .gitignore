@@ -8,3 +8,4 @@ httpserver
 # Lab 3
 tcp_echo_client
 tcp_echo_server
+kvstore2pcsystem
