@@ -27,6 +27,11 @@ bool command_parser::is_done()
     return (idx_ == data_.size());
 }
 
+std::size_t command_parser::bytes_parsed()
+{
+    return idx_;
+}
+
 std::unique_ptr<command> command_parser::read_command()
 {
     // Record starting index.

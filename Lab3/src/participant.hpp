@@ -22,7 +22,7 @@ namespace simple_kv_store {
 class participant {
 public:
     /// ctors.
-    participant(std::unique_ptr<participant_configuration> conf);
+    participant(participant_configuration &&conf);
 
     ~participant();
 
@@ -59,7 +59,7 @@ private:
         }
     };
 
-    std::unique_ptr<participant_configuration> conf_;
+    participant_configuration conf_;
 
     /// The actual server for responding RPCs.
     rpc::server svr_;

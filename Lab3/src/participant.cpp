@@ -258,9 +258,9 @@ struct participant::set_initial_next_id_handler_t {
     participant &p_;
 };
 
-participant::participant(std::unique_ptr<participant_configuration> conf)
+participant::participant(participant_configuration &&conf)
     : conf_(std::move(conf))
-    , svr_(conf_->addr, conf_->port)
+    , svr_(conf_.addr, conf_.port)
     , get_handler_(new participant::get_handler_t(*this))
     , prepare_set_(new participant::prepare_set_t(*this))
     , prepare_del_(new participant::prepare_del_t(*this))
@@ -271,7 +271,7 @@ participant::participant(std::unique_ptr<participant_configuration> conf)
 {
     leveldb::Options options;
     options.create_if_missing = true;
-    auto status = leveldb::DB::Open(options, conf_->storage_path, &db_);
+    auto status = leveldb::DB::Open(options, conf_.storage_path, &db_);
 
     if (!status.ok())
         __SERVER_THROW("unable to open storage");
@@ -299,7 +299,7 @@ participant::~participant()
 
 void participant::start()
 {
-    svr_.async_run(conf_->num_worker);
+    svr_.async_run(conf_.num_worker);
 }
 
 }    // namespace simple_kv_store

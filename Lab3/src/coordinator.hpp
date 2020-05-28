@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <map>
+#include "command.hpp"
 #include "configuration.hpp"
 #include "rpc/client.h"
 #include "tcp_server/tcp_server.hpp"
@@ -18,7 +19,7 @@ using tcp_server_lib::tcp_client;
 class coordinator {
 public:
     /// Ctors.
-    coordinator(std::unique_ptr<coordinator_configuration> conf);
+    coordinator(coordinator_configuration &&conf);
 
     /// Starting the server.
     void start();
@@ -33,7 +34,9 @@ private:
 
     /// Called by callback workers of [svr] whenever a client
     /// sends a new db request.
+    /// [prev_data] is not null if previous cmd is not complete yet.
     void handle_db_requests(std::shared_ptr<tcp_client> client, 
+                            std::shared_ptr<std::vector<char>> prev_data,
                             tcp_client::read_result &req);
 
     void handle_db_get_request(std::shared_ptr<tcp_client> client, 
@@ -49,11 +52,11 @@ private:
     void abort_db_request(std::shared_ptr<tcp_client> client, std::size_t id, bool &participant_dead);
 
     /// Helper.
-    void parse_db_requests(std::vector<char> &data, std::vector<std::unique_ptr<command> > &ret);
+    void parse_db_requests(std::vector<char> &data, std::vector<std::unique_ptr<command> > &ret, std::size_t &bytes_parsed);
 
     /// Command errors handler.
     void handle_command_error(std::shared_ptr<tcp_client> client, 
-                              std::vector<char> &data,
+                              std::shared_ptr<std::vector<char>> data,
                               std::runtime_error *e);
 
     /// Sends a result back to client.
@@ -64,7 +67,7 @@ private:
 
 private:
     /// config.
-    std::unique_ptr<coordinator_configuration> conf_;
+    coordinator_configuration conf_;
 
     /// Underlying TCP server.
     tcp_server svr_;

@@ -24,11 +24,12 @@ struct configuration {
 
 /// Used by coordinator.
 struct coordinator_configuration : public configuration {
-    coordinator_configuration() : configuration(COORDINATOR) {}
+    coordinator_configuration();
+    coordinator_configuration(coordinator_configuration &&);
 
     /// IP address and port used by the coordinator.
-    std::string addr = "127.0.0.1";
-    std::uint16_t port = 8080;
+    std::string addr;
+    std::uint16_t port;
 
     /// IP address and ports of participants.
     std::vector<std::string> participant_addrs;
@@ -37,21 +38,22 @@ struct coordinator_configuration : public configuration {
 
 /// Used by participants.
 struct participant_configuration : public configuration {
-    participant_configuration() : configuration(PARTICIPANT) {}
+    participant_configuration();
+    participant_configuration(participant_configuration &&);
 
     /// Address used by itself.
-    std::string addr = "127.0.0.1";
-    std::uint16_t port = 8001;
+    std::string addr;
+    std::uint16_t port;
 
     /// Info of coordinator.
     std::string coordinator_addr;
     std::uint16_t coordinator_port;
 
     /// Number of callback workers.
-    std::size_t num_worker = 2;
+    std::size_t num_worker;
 
     /// Path to persistent storage.
-    std::string storage_path = "/tmp/testdb";
+    std::string storage_path;
 };
 
 } // namespace simple_kv_store

@@ -44,6 +44,9 @@ public:
     /// Indicating whether parser is done.
     bool is_done();
 
+    /// How many bytes are left to be parsed.
+    std::size_t bytes_parsed();
+
 public:
     /// "\r\n" as default separator.
     static std::string separator;
