@@ -1,8 +1,8 @@
-<p align="center">
-    <img src="./logo.png">
-</p>
-
 ## Cdb
+
+<p align="center">
+    <img src="./logo.jpeg">
+</p>
 
 Cdb is simple key-value distributed data store.
 
