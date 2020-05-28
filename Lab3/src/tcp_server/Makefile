@@ -1,6 +1,6 @@
 CXX = g++ -pthread	# Quirks with GCC.
 OPTIMIZE_LEVEL ?= -O3
-CXXFLAGS = -std=c++11 -Wall -Wextra -Werror ${OPTIMIZE_LEVEL}
+CXXFLAGS = -std=c++11 -Wall -Wextra ${OPTIMIZE_LEVEL}
 
 OS := ""
 UNAME = $(shell uname -s)

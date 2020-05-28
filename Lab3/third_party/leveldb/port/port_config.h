@@ -6,13 +6,19 @@
 #define STORAGE_LEVELDB_PORT_PORT_CONFIG_H_
 
 // Define to 1 if you have a definition for fdatasync() in <unistd.h>.
-#if !defined(HAVE_FDATASYNC)
+#if defined(__APPLE__)
 #define HAVE_FDATASYNC 0
+#else
+/// Linux
+#define HAVE_FDATASYNC 1
 #endif  // !defined(HAVE_FDATASYNC)
 
 // Define to 1 if you have a definition for F_FULLFSYNC in <fcntl.h>.
-#if !defined(HAVE_FULLFSYNC)
+#if defined(__APPLE__)
 #define HAVE_FULLFSYNC 1
+#else
+/// Linux
+#define HAVE_FULLFSYNC 0
 #endif  // !defined(HAVE_FULLFSYNC)
 
 // Define to 1 if you have a definition for O_CLOEXEC in <fcntl.h>.

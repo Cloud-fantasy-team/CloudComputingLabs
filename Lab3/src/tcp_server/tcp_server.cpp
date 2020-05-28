@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "exceptions.hpp"
 #include "tcp_server.hpp"
 #include "common.hpp"

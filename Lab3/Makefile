@@ -1,7 +1,7 @@
 CXX ?= g++
 OPTIMIZE_LEVEL ?= -g
 CXXFLAGS += -pthread -std=c++11 ${OPTIMIZE_LEVEL}
-INCLUDE_PATH = -Ithird_party/rpclib/include -I/third_party/leveldb/include
+INCLUDE_PATH = -Ithird_party/rpclib/include -Ithird_party/leveldb/include
 
 OS := ""
 UNAME = $(shell uname -s)

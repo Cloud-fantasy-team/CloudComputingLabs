@@ -3,7 +3,7 @@
 ################
 CXX ?= g++
 DEFINITIONS = -DLEVELDB_HAS_PORT_CONFIG_H=1 -DLEVELDB_PLATFORM_POSIX=1
-CXXFLAGS = -pthread -std=c++11 -Wstrict-prototypes -fno-exceptions -fno-rtti ${DEFINITIONS}
+CXXFLAGS = -pthread -std=c++11 -fno-exceptions -fno-rtti ${DEFINITIONS}
 INCLUDE_DIR = -Iinclude -I.
 
 ###########
