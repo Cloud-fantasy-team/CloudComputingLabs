@@ -51,4 +51,5 @@ clean:
 	@ cd src/tcp_server && ${MAKE} clean
 	@ cd third_party/rpclib && ${MAKE} clean
 	@ cd third_party/leveldb && ${MAKE} clean
-	@ rm ${OBJECTS}
+	@ rm -rf ${OBJECTS}
+	@ rm -rf ${EXECS}

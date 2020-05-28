@@ -1,3 +1,5 @@
+#include <cstdlib>
+#include <ctime>
 #include <iostream>
 #include <chrono>
 #include "errors.hpp"
@@ -18,29 +20,51 @@ void coordinator::start()
                conf_.port,
                std::bind(&coordinator::handle_new_client, this, std::placeholders::_1));
 
+    init_participants();
+    heartbeat_participants();
+}
+
+/// No locking is needed cause we'll only do it once.
+void coordinator::init_participants()
+{
+    /// Rely on the good old rand and srand to set initial_next_id.
+    std::srand(std::time(nullptr));
+    int initial_id = std::rand();
+    next_id_.store(initial_id);
+
     /// Create participant clients.
     for (std::size_t i = 0; i < conf_.participant_addrs.size(); i++)
     {
         auto &addr = conf_.participant_addrs[i];
         auto port = conf_.participant_ports[i];
-        std::cout << "participant addr: " << addr << ":" << port << std::endl;
-        participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addr, port} };
-
-        std::cout << "participants_[addr] == nullptr? " << (participants_[addr] == nullptr) << std::endl;
+        try
+        {
+            participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addr, port} };
+            participants_[addr]->set_timeout(200);
+            
+            participants_[addr]->call("initial_next_id", initial_id).as<bool>();
+            /// TODO: If initial_next_id failed, it's probably the coordinator
+            /// has been restarted. We'll need to implement a recovery mechanism.
+        }
+        catch (std::exception &err)
+        {
+            /// TODO: LOG.
+            participants_.erase(addr);
+        }
     }
-
-    connect_dbs();
 }
 
-void coordinator::connect_dbs()
+void coordinator::heartbeat_participants()
 {
     for (;;)
     {
         {
+            /// If there's no more dead participants, go to sleep.
             std::unique_lock<std::mutex> lock(participants_mutex_);
             if (participants_.size() == conf_.participant_addrs.size())
                 participants_cond_.wait(lock, [&]() { return participants_.size() < conf_.participant_addrs.size(); });
         }
+
     }
 }
 

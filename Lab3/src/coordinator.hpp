@@ -25,8 +25,15 @@ public:
     void start();
 
 private:
-    /// Tries to connect to all dbs.
-    void connect_dbs();
+    /// Called within ctors. Initializing participants.
+    /// NOTE: This method will only be called once.
+    void init_participants();
+
+    /// Heartbeat mechanism to detect participant failure.
+    /// This function will be run as a single thread, and it'll be
+    /// awaken when there are dead participants. This thread will try connecting
+    /// the dead participants indefinitely.
+    void heartbeat_participants();
 
     /// Called by callback workers of [svr] whenever a new
     /// client connection arrives.
