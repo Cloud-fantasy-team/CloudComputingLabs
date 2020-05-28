@@ -10,7 +10,7 @@
 #include "rpc/client.h"
 #include "tcp_server/tcp_server.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 using tcp_server_lib::tcp_server;
 using tcp_server_lib::tcp_client;
@@ -64,7 +64,7 @@ private:
     /// Command errors handler.
     void handle_command_error(std::shared_ptr<tcp_client> client, 
                               std::shared_ptr<std::vector<char>> data,
-                              std::runtime_error *e);
+                              bool is_incomplete);
 
     /// Sends a result back to client.
     void send_result(std::shared_ptr<tcp_client> client, std::string const &ret);
@@ -89,7 +89,7 @@ private:
     std::condition_variable participants_cond_;
 };
 
-} // namespace simple_kv_store
+} // namespace cdb
 
 
 #endif

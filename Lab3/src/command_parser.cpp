@@ -3,7 +3,7 @@
 #include "common.hpp"
 #include "command_parser.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 std::string command_parser::separator = "\r\n";
 
@@ -225,4 +225,4 @@ char command_parser::peek_char()
     return data_[idx_];
 }
 
-}    // namespace simple_kv_store
+}    // namespace cdb

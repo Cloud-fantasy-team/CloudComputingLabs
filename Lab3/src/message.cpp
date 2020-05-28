@@ -1,6 +1,6 @@
 #include "message.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /*
 coordinator.
@@ -42,4 +42,4 @@ db_request::db_request(db_del_request &&req)
     cmd.reset(new del_command(std::move(req.cmd)));
 }
 
-}    // namespace simple_kv_store
+}    // namespace cdb

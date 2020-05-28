@@ -9,32 +9,38 @@ using tcp_server_lib::tcp_client;
 std::mutex mutex;
 std::condition_variable cond;
 
-void get_result(tcp_client &client, tcp_client::write_result &result)
+void read_reply(tcp_client &client, tcp_client::write_result &result);
+void on_read_reply_done(tcp_client &client, tcp_client::read_result &result)
+{
+    if (!result.success)
+    {
+        std::cout << "connection closed" << std::endl;
+        return;
+    }
+
+    std::string ret{result.data.begin(), result.data.end()};
+    std::cout << "> " << ret << std::endl;
+
+    tcp_client::write_result dummy { true, 0 };
+    read_reply(client, dummy);
+}
+
+void read_reply(tcp_client &client, tcp_client::write_result &result)
 {
     if (result.success)
     {
-        std::cout << "sent " << result.size << " bytes\n";
         try {
             client.async_read({
                 1024,
-                [&](tcp_client::read_result &result) {
-                    if (!result.success)
-                    {
-                        std::cout << "Failed reading from server" << std::endl;
-                        return;
-                    }
-
-                    std::string ret{result.data.begin(), result.data.end()};
-                    std::cout << "> " << ret << std::endl;
-                }
+                std::bind(&on_read_reply_done, std::ref(client), std::placeholders::_1)
             });
         } catch (std::runtime_error &e)
         {
-            std::cout << "get_result caught: " << e.what() << std::endl;
+            std::cout << "read_reply caught: " << e.what() << std::endl;
         }
     }
     else
-        std::cout << "write failed" << std::endl;
+        std::cout << "connection closed" << std::endl;
 }
 
 int main()
@@ -43,24 +49,31 @@ int main()
     std::string get_cmd{"*2\r\n$3\r\nGET\r\n$7\r\nCS06142\r\n"};
     std::string set_cmd{"*4\r\n$3\r\nSET\r\n$7\r\nCS06142\r\n$5\r\nCloud\r\n$9\r\nComputing\r\n"};
 
-    std::vector<std::string> cmds{ set_cmd, get_cmd, del_cmd, get_cmd };
-
     tcp_client client;
     try 
     {
         client.connect("localhost", 8080);
 
-        for (std::string const& cmd : cmds)
-        {
-            client.async_write({
-                std::vector<char>{cmd.begin(), cmd.end()},
-                std::bind(&get_result, std::ref(client), std::placeholders::_1)
-            });
-        }
+        std::vector<char> cmds_part_1{set_cmd.begin(), set_cmd.end()};
+        cmds_part_1.insert(cmds_part_1.end(), get_cmd.begin(), get_cmd.begin() +20);
+        std::vector<char> cmds_part_2{get_cmd.begin() + 20, get_cmd.end()};
+
+        // Send a piece of incomplete cmd.
+        client.async_write({
+            cmds_part_1,
+            nullptr
+        });
+
+        // Sleep for 400ms, then send the remaining cmd.
+        std::this_thread::sleep_for(std::chrono::microseconds(400));
+        client.async_write({
+            cmds_part_2,
+            std::bind(&read_reply, std::ref(client), std::placeholders::_1)
+        });
     }
     catch (std::runtime_error &e)
     {
-        std::cout << "Caught error: " << e.what() << std::endl;
+        std::cout << "connection closed" << std::endl;
     }
 
     for(;;) {}

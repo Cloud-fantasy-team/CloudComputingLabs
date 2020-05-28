@@ -6,7 +6,7 @@
 #include "command_parser.hpp"
 #include "message.hpp"
 #include "rpc/client.h"
-using namespace simple_kv_store;
+using namespace cdb;
 
 // Single threaded. No need to synchronize.
 std::vector<std::future<clmdep_msgpack::object_handle>> futures;

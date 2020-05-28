@@ -1,0 +1,2 @@
+- Remove all the crazy Makefile things.
+- Make coordinator fault-tolerant.

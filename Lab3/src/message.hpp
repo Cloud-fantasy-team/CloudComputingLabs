@@ -9,7 +9,7 @@
 #include "command.hpp"
 #include "rpc/msgpack.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /*
 The reason to separate coordinator/participant req info
@@ -92,7 +92,7 @@ struct db_request {
 };
 
 
-} // namespace simple_kv_store
+} // namespace cdb
 
 
 #endif

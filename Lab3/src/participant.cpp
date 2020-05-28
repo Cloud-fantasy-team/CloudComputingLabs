@@ -5,7 +5,7 @@
 #include "errors.hpp"
 #include "participant.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 const std::string participant::error_string = "-ERROR\r\n";
 const std::string participant::update_ok_string = "+OK\r\n";
@@ -302,4 +302,4 @@ void participant::start()
     svr_.async_run(conf_.num_worker);
 }
 
-}    // namespace simple_kv_store
+}    // namespace cdb

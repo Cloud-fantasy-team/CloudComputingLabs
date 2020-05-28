@@ -1,6 +1,6 @@
 #include "configuration.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /*
 CTORS with default value.
@@ -37,4 +37,4 @@ coordinator_configuration::coordinator_configuration(coordinator_configuration &
     , participant_addrs(std::move(conf.participant_addrs))
     , participant_ports(std::move(conf.participant_ports)) {}
 
-}   // namespace simple_kv_store
+}   // namespace cdb

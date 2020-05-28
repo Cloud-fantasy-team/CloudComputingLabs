@@ -9,7 +9,7 @@
 #include <vector>
 #include "command.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /// Command parser parses a command from the given data.
 /// If the given data is not complete, the parser simply rejects
@@ -83,6 +83,6 @@ private:
     std::size_t start_idx_;
 };
 
-}    // namespace simple_kv_store
+}    // namespace cdb
 
 #endif

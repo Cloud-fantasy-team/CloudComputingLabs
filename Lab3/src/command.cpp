@@ -1,6 +1,6 @@
 #include "command.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /*
 GET command

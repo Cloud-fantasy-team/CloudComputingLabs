@@ -16,7 +16,7 @@
 #include "message.hpp"
 #include "configuration.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /// Store server class. We're utilizing leveldb for real and fast storage.
 class participant {
@@ -90,7 +90,7 @@ private:
     leveldb::DB *db_;
 };
 
-} // namespace simple_kv_store
+} // namespace cdb
 
 
 #endif

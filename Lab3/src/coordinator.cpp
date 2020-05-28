@@ -7,7 +7,7 @@
 #include "coordinator.hpp"
 #include "participant.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 coordinator::coordinator(coordinator_configuration &&conf)
     : conf_(std::move(conf))
@@ -102,6 +102,7 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
 
     std::vector<std::unique_ptr<command> > cmds;
     bool parse_error = false;
+    bool is_incomplete = false;
     std::size_t bytes_parsed = 0;
 
     /// Try parsing a client command.
@@ -109,6 +110,11 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
     {
         std::vector<char> data_copy{data};
         parse_db_requests(data_copy, cmds, bytes_parsed);
+    }
+    catch (parse_incomplete_error &)
+    {
+        is_incomplete = true;
+        parse_error = true;
     }
     catch (std::runtime_error &e)
     {
@@ -154,7 +160,7 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
         handle_command_error(client, 
                              /* Left bytes. */
                              std::shared_ptr<std::vector<char>>{ new std::vector<char>{data.begin() + bytes_parsed, data.end()} },
-                             nullptr);
+                             is_incomplete);
         return;
     }
 
@@ -409,14 +415,14 @@ coordinator::parse_db_requests(std::vector<char> &data,
 
 void coordinator::handle_command_error(std::shared_ptr<tcp_client> client,
                                        std::shared_ptr<std::vector<char>> data,
-                                       std::runtime_error *e)
+                                       bool is_incomplete)
 {
-    auto incomp_error = dynamic_cast<parse_incomplete_error*>(e);
-    if (!incomp_error)
+    if (!is_incomplete)
     {
         send_error(client);
         return;
     }
+    std::cout << "handle incomplete error" << std::endl;
 
     /// Error caused by an incomplete command.
     try
@@ -452,4 +458,4 @@ void coordinator::send_result(std::shared_ptr<tcp_client> client, std::string co
     }
 }
 
-} // namespace simple_kv_store
+} // namespace cdb

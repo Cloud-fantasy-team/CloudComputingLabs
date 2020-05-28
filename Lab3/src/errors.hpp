@@ -6,20 +6,20 @@
 
 #define __PARSER_THROW_SYNTAX(msg)                                                    \
     {                                                                                 \
-        throw simple_kv_store::parse_syntax_error((msg), __FILE__, __LINE__);         \
+        throw cdb::parse_syntax_error((msg), __FILE__, __LINE__);         \
     }
 
 #define __PARSER_THROW_INCOMPLETE(msg)                                                \
     {                                                                                 \
-        throw simple_kv_store::parse_incomplete_error((msg), __FILE__, __LINE__);     \
+        throw cdb::parse_incomplete_error((msg), __FILE__, __LINE__);     \
     }
 
 #define __SERVER_THROW(msg)                                                    \
     {                                                                          \
-        throw simple_kv_store::server_error((msg), __FILE__, __LINE__);        \
+        throw cdb::server_error((msg), __FILE__, __LINE__);        \
     }
 
-namespace simple_kv_store
+namespace cdb
 {
 
 /// TODO: Fix this mess.
@@ -66,7 +66,7 @@ private:
     std::size_t line_;
 };
 
-} // namespace simple_kv_store
+} // namespace cdb
 
 
 #endif

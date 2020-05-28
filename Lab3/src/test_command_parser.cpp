@@ -1,7 +1,7 @@
 #include <string>
 #include <iostream>
 #include "command_parser.hpp"
-using namespace simple_kv_store;
+using namespace cdb;
 
 template <class command_t>
 void parse(std::string const &cmd_str)

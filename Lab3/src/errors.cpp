@@ -1,6 +1,6 @@
 #include "errors.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 parse_syntax_error::parse_syntax_error(const std::string msg, const std::string &file, std::size_t line)
     : std::runtime_error(msg)

@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-namespace simple_kv_store {
+namespace cdb {
 
 /// Configuration base class.
 struct configuration {
@@ -56,7 +56,7 @@ struct participant_configuration : public configuration {
     std::string storage_path;
 };
 
-} // namespace simple_kv_store
+} // namespace cdb
 
 
 #endif

@@ -9,7 +9,7 @@
 #include <vector>
 #include "rpc/msgpack.hpp"
 
-namespace simple_kv_store {
+namespace cdb {
 
 /// Tags.
 typedef uint8_t command_type;
@@ -116,7 +116,7 @@ private:
     std::vector<std::string> keys_;
 };
 
-} // namespace simple_kv_store
+} // namespace cdb
 
 
 #endif

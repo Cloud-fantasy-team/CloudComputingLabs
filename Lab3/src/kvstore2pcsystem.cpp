@@ -5,10 +5,10 @@
 #include "coordinator.hpp"
 #include "participant.hpp"
 #include "configuration.hpp"
-using simple_kv_store::coordinator;
-using simple_kv_store::participant;
-using simple_kv_store::coordinator_configuration;
-using simple_kv_store::participant_configuration;
+using cdb::coordinator;
+using cdb::participant;
+using cdb::coordinator_configuration;
+using cdb::participant_configuration;
 
 // std::mutex m;
 // std::condition_variable cond;
