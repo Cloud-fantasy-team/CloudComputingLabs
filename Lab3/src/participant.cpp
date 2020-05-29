@@ -1,3 +1,4 @@
+#include <iostream>
 #include <sstream>
 #include <chrono>
 #include <unordered_map>
@@ -22,6 +23,7 @@ struct participant::get_handler_t {
         std::string value;
         leveldb::Status status = p_.db_->Get(leveldb::ReadOptions(), key, &value);
 
+        std::cout << "GET " << req.cmd.key() << std::endl;
         if (status.ok())
             return encode_result(value);
         else
@@ -67,6 +69,7 @@ struct participant::prepare_set_t {
             db_request generic_req{std::move(req)};
             p_.db_requests_.insert(std::move(generic_req));
 
+            std::cout << "PREPARE SET" << std::endl;
             return true;
         } catch (std::exception &e) {
             // LOG.
@@ -91,6 +94,7 @@ struct participant::prepare_del_t {
             db_request generic_req{std::move(req)};
             p_.db_requests_.insert(std::move(generic_req));
 
+            std::cout << "PREPARE DEL \n";
             return true;
         } catch (std::exception &e) {
             // LOG.
@@ -116,6 +120,7 @@ struct participant::commit_handler_t {
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
+        std::cout << "COMMIT" << std::endl;
         // We have reached to an inconsistent state.
         if (p_.db_requests_.empty())
             __SERVER_THROW("inconsistent state");
@@ -224,6 +229,7 @@ struct participant::abort_handler_t {
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
+        std::cout << "ABORT\n";
         /// Same as commit.
         if (p_.next_id_ != id)
             p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]() { return p_.next_id_ == id; });
@@ -258,6 +264,105 @@ struct participant::set_initial_next_id_handler_t {
     participant &p_;
 };
 
+struct participant::heartbeat_t {
+    heartbeat_t(participant &p)
+        : p_(p) {}
+
+    void operator()() const {}
+
+    participant &p_;
+};
+
+
+struct participant::get_snapshot_t {
+    get_snapshot_t(participant &p)
+        : p_(p) {}
+
+    std::vector<char> operator()() const
+    {
+        std::cout << "GET_SNAPSHOT\n";
+        std::vector<char> data;
+        auto it = p_.db_->NewIterator(leveldb::ReadOptions());
+        
+        for (it->SeekToFirst(); it->Valid(); it->Next())
+            encode_pair(data, it->key().ToString(), it->value().ToString());
+
+        return data;
+    }
+
+    void encode_pair(std::vector<char> &data, 
+                    const std::string &key, 
+                    const std::string &value) const
+    {
+        /// 2 bytes to store the key size, in little endian order.
+        short key_size = static_cast<short>(key.size());
+        data.insert(data.end(), key_size & 0xFF);
+        data.insert(data.end(), (key_size >> 8) & 0xFF);
+        data.insert(data.end(), key.begin(), key.end());
+
+        /// 2 bytes to store the value size.
+        short value_size = static_cast<short>(value.size());
+        data.insert(data.end(), value_size & 0xFF);
+        data.insert(data.end(), (value_size >> 8) & 0xFF);
+        data.insert(data.end(), value.begin(), value.end());
+    }
+
+    participant &p_;
+};
+
+/// FIXME: The current recovery still ignores any deleted keys.
+struct participant::recover_t {
+    recover_t(participant &p)
+        : p_(p) {}
+
+    bool operator()(std::vector<char> data)
+    {
+        std::cout << "RECOVER\n";
+        for (std::size_t i = 0; i < data.size(); )
+        {
+            std::vector<std::string> pair;
+            for (std::size_t j = 0; j < 2; j++)
+            {
+                short size;
+                char *ptr = reinterpret_cast<char*>(&size);
+
+                if (i + 1 >= data.size())
+                {
+                    /// TODO: LOG
+                    return false;
+                }
+
+                *ptr++ = is_big_endian() ? data[i + 1] : data[i];
+                *ptr = is_big_endian() ? data[i] : data[i + 1];
+                i += 2;
+
+                std::string item{data.begin() + i, data.begin() + i + size};
+                i += size;
+                pair.push_back(item);
+            }
+
+            auto s = p_.db_->Put(leveldb::WriteOptions(), pair[0], pair[1]);
+            if (!s.ok())
+                return false;
+        }
+        std::cout << "recovery success\n";
+        return true;
+    }
+
+    bool is_big_endian(void)
+    {
+        union {
+            uint32_t i;
+            char c[4];
+        } bint = {0x01020304};
+
+        return bint.c[0] == 1; 
+    }
+
+
+    participant &p_;
+};
+
 participant::participant(participant_configuration &&conf)
     : conf_(std::move(conf))
     , svr_(conf_.addr, conf_.port)
@@ -267,6 +372,9 @@ participant::participant(participant_configuration &&conf)
     , commit_handler_(new participant::commit_handler_t(*this))
     , abort_handler_(new participant::abort_handler_t(*this))
     , initial_next_id_(new participant::set_initial_next_id_handler_t(*this))
+    , heartbeat_(new participant::heartbeat_t(*this))
+    , get_snapshot_(new participant::get_snapshot_t(*this))
+    , recover_(new participant::recover_t(*this))
     , db_(nullptr)
 {
     leveldb::Options options;
@@ -285,6 +393,9 @@ participant::participant(participant_configuration &&conf)
     svr_.bind("commit", *commit_handler_);
     svr_.bind("abort", *abort_handler_);
     svr_.bind("initial_next_id", *initial_next_id_);
+    svr_.bind("heartbeat", *heartbeat_);
+    svr_.bind("get_snapshot", *get_snapshot_);
+    svr_.bind("recover", *recover_);
 }
 
 participant::~participant()
@@ -295,6 +406,9 @@ participant::~participant()
     delete commit_handler_;
     delete abort_handler_;
     delete initial_next_id_;
+    delete heartbeat_;
+    delete get_snapshot_;
+    delete recover_;
 }
 
 void participant::start()

@@ -35,20 +35,23 @@ void coordinator::init_participants()
     /// Create participant clients.
     for (std::size_t i = 0; i < conf_.participant_addrs.size(); i++)
     {
-        auto &addr = conf_.participant_addrs[i];
+        auto &ip = conf_.participant_addrs[i];
         auto port = conf_.participant_ports[i];
+        auto addr = ip + ":" + std::to_string(port);
         try
         {
-            participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addr, port} };
+            participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{ip, port} };
             participants_[addr]->set_timeout(200);
             
             participants_[addr]->call("initial_next_id", initial_id).as<bool>();
             /// TODO: If initial_next_id failed, it's probably the coordinator
             /// has been restarted. We'll need to implement a recovery mechanism.
+            std::cout << "init participant " << addr << ":" << port;
         }
         catch (std::exception &err)
         {
             /// TODO: LOG.
+            std::cout << "remove participant\n";
             participants_.erase(addr);
         }
     }
@@ -58,14 +61,81 @@ void coordinator::heartbeat_participants()
 {
     for (;;)
     {
+        const auto &addrs = conf_.participant_addrs;
+        const auto &ports = conf_.participant_ports;
+
+        for (std::size_t i = 0; i < addrs.size(); i++)
         {
-            /// If there's no more dead participants, go to sleep.
-            std::unique_lock<std::mutex> lock(participants_mutex_);
-            if (participants_.size() == conf_.participant_addrs.size())
-                participants_cond_.wait(lock, [&]() { return participants_.size() < conf_.participant_addrs.size(); });
+            try
+            {
+                rpc::client client{addrs[i], ports[i]};
+                client.set_timeout(200);
+                client.call("heartbeat");
+
+                {
+                    std::unique_lock<std::mutex> lock(participants_mutex_);
+
+                    std::string addr = addrs[i] + ":" + std::to_string(ports[i]);
+                    if (!participants_.count(addr))
+                    {
+                        /// We only add it back if we're done.
+                        std::cout << "going to recover participant at " << addr << std::endl;
+                        if (recover_participant(client))
+                            participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addrs[i], ports[i]} };
+                    }
+                }
+
+            }
+            catch (std::exception &e) {
+                std::cout << "heartbeat failed\n";
+            }
         }
 
+        std::this_thread::sleep_for(std::chrono::seconds(3));
     }
+}
+
+bool coordinator::recover_participant(rpc::client &client)
+{
+    std::cout << "recover_participant\n";
+    // Lock is already acquired.
+    while (!participants_.empty())
+    {
+        std::vector<char> snapshot;
+        bool snapshot_ok = false;
+        try
+        {
+            participants_.begin()->second->set_timeout(300);
+            snapshot = std::move(participants_.begin()->second->call("get_snapshot").as<std::vector<char>>());
+            snapshot_ok = true;
+        }
+        catch(const std::exception& e)
+        {
+            participants_.erase(participants_.begin());
+            snapshot_ok = false;
+        }
+
+        if (snapshot_ok)
+        {
+            std::cout << "snapshot OK\n";
+            try
+            {
+                std::size_t id = next_id_;
+                client.set_timeout(300);
+                client.call("recover", snapshot);
+                std::cout << "recover rpc return\n";
+                client.call("initial_next_id", id);
+                std::cout << "recover done\n";
+                return true;
+            }
+            catch (std::exception &e)
+            {
+                std::cout << "recover failed: " << e.what() << std::endl;
+                return false;
+            }
+        }
+    }
+    return false;
 }
 
 void coordinator::handle_new_client(std::shared_ptr<tcp_client> client)
@@ -111,14 +181,16 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
         std::vector<char> data_copy{data};
         parse_db_requests(data_copy, cmds, bytes_parsed);
     }
-    catch (parse_incomplete_error &)
+    catch (parse_incomplete_error &e)
     {
         is_incomplete = true;
         parse_error = true;
+        std::cout << "parse error: " << e.what() << std::endl;
     }
     catch (std::runtime_error &e)
     {
         parse_error = true;
+        std::cout << "parse error: " << e.what() << std::endl;
     }
 
     /// Dispatch.
@@ -184,33 +256,34 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
 {
     db_get_request req{0, std::move(cmd)};
 
-    std::cout << "handle_db_get_request before lock" << std::endl;
-    /// Acquire lock.
-    std::unique_lock<std::mutex> lock(participants_mutex_);
-    std::cout << "handle_db_get_request after lock" << std::endl;
-    if (participants_.empty())
     {
-        /// The system cannot function.
-        send_error(client);
-        client->disconnect(false);
-        return;
-    }
+        /// Acquire lock.
+        std::unique_lock<std::mutex> lock(participants_mutex_);
 
-    /// GET will be served directly.
-    while (!participants_.empty())
-    {
-        try {
-            auto &p = participants_.begin()->second;
-            p->set_timeout(10000);
-
-            auto value = p->call("get", req).as<std::string>();
-            send_result(client, value);
+        if (participants_.empty())
+        {
+            /// The system cannot function.
+            send_error(client);
+            client->disconnect(false);
             return;
-        } catch (std::exception &) {
-            // Remove this client.
-            /// TODO: LOG
-            participants_.erase(participants_.begin());
-            std::cout << "handle_db_get_request remove participant" << std::endl;
+        }
+
+        /// GET will be served directly.
+        while (!participants_.empty())
+        {
+            try {
+                auto &p = participants_.begin()->second;
+                p->set_timeout(300);
+
+                auto value = p->call("get", req).as<std::string>();
+                send_result(client, value);
+                return;
+            } catch (std::exception &) {
+                // Remove this client.
+                /// TODO: LOG
+                participants_.erase(participants_.begin());
+                std::cout << "handle_db_get_request remove participant" << std::endl;
+            }
         }
     }
 
@@ -223,11 +296,8 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
 {
     db_set_request req{next_id_.fetch_add(1), std::move(cmd)};
 
-    std::cout << "handle_db_set_request before lock" << std::endl;
-
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
-    std::cout << "handle_db_set_request after lock" << std::endl;
     if (participants_.empty())
     {
         std::cout << "participant empty" << std::endl;
@@ -240,14 +310,17 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
     /// PREPARE
     bool prepare_ok = true;
     bool participant_dead = false;
+    std::cout << "participants_.size() " << participants_.size() << std::endl;
     for (auto iter = participants_.begin(); iter != participants_.end(); )
     {
         try
         {
-            iter->second->set_timeout(10000);
+            std::cout << "prepare_set\n";
+            iter->second->set_timeout(300);
             prepare_ok = iter->second->call("prepare_set", req).as<bool>();
             if (!prepare_ok)
                 break;
+            std::cout << "prepare_set ok\n";
         } 
         catch (std::exception &e)
         {
@@ -284,11 +357,9 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
                                         del_command cmd)
 {
     db_del_request req{next_id_.fetch_add(1), std::move(cmd)};
-    std::cout << "handle_db_del_request before lock" << std::endl;
 
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
-    std::cout << "handle_db_del_request after lock" << std::endl;
     if (participants_.empty())
     {
         std::cout << "participant empty" << std::endl;
@@ -305,7 +376,7 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
     {
         try
         {
-            iter->second->set_timeout(10000);
+            iter->second->set_timeout(300);
             prepare_ok = iter->second->call("prepare_del", req).as<bool>();
             if (!prepare_ok)
                 break;
@@ -344,15 +415,13 @@ void coordinator::commit_db_request(std::shared_ptr<tcp_client> client,
                                     bool &participant_dead) {
     std::string ret;
 
-    std::cout << "commit_db_request" << std::endl;
-
     /// Lock has required by caller.
     for (auto iter = participants_.begin(); iter != participants_.end(); )
     {
         try
         {
             std::cout << "before commit" << std::endl;
-            iter->second->set_timeout(10000);
+            iter->second->set_timeout(300);
             ret = iter->second->call("commit", id).as<std::string>();
             std::cout << "commit result: " << ret << std::endl;
         }
@@ -374,13 +443,12 @@ void coordinator::abort_db_request(std::shared_ptr<tcp_client> client,
                                    std::size_t id, 
                                    bool &participant_dead) 
 {
-    std::cout << "abort_db_request" << std::endl;
     /// Lock has required by caller.
     for (auto iter = participants_.begin(); iter != participants_.end(); )
     {
         try
         {
-            iter->second->set_timeout(10000);
+            iter->second->set_timeout(300);
             /// If abort rpc returns false, basically it's malfunctioning.
             if (!iter->second->call("abort", id).as<bool>())
                 throw std::exception();

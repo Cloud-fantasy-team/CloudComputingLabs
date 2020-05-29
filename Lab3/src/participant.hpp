@@ -40,6 +40,8 @@ private:
     struct abort_handler_t;
     struct set_initial_next_id_handler_t;
     struct get_snapshot_t;
+    struct recover_t;
+    struct heartbeat_t;
 
     friend get_handler_t;
     friend prepare_set_t;
@@ -48,6 +50,8 @@ private:
     friend abort_handler_t;
     friend set_initial_next_id_handler_t;
     friend get_snapshot_t;
+    friend recover_t;
+    friend heartbeat_t;
 
 private:
     /// Comparator.
@@ -71,6 +75,9 @@ private:
     commit_handler_t *commit_handler_;
     abort_handler_t *abort_handler_;
     set_initial_next_id_handler_t *initial_next_id_;
+    heartbeat_t *heartbeat_;
+    get_snapshot_t *get_snapshot_;
+    recover_t *recover_;
 
     /// Pending requests.
     std::set<db_request, db_request_cmp> db_requests_;

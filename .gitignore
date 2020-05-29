@@ -12,3 +12,4 @@ kvstore2pcsystem
 test_rpc
 test_command_parser
 test_system
+participant_server

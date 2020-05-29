@@ -10,15 +10,6 @@ using cdb::participant;
 using cdb::coordinator_configuration;
 using cdb::participant_configuration;
 
-// std::mutex m;
-// std::condition_variable cond;
-
-// void exit_server(int)
-// {
-//     std::cout << "exitting server\n";
-//     cond.notify_all();
-// }
-
 int main(int argc, const char *argv[])
 {
     if (argc != 2)
@@ -29,19 +20,25 @@ int main(int argc, const char *argv[])
 
     if (std::string{argv[1]} == "coordinator")
     {
-        coordinator c{coordinator_configuration{}};
+        coordinator_configuration conf;
+        conf.participant_addrs.push_back("127.0.0.1");
+        conf.participant_ports.push_back(8002);
+        coordinator c{std::move(conf)};
         c.start();
     }
     else
     {
-        // signal(SIGINT, exit_server);
         participant p{participant_configuration{}};
         p.start();
-
         std::cout << "server listening at localhost 8001" << std::endl;
 
+        // participant_configuration conf;
+        // conf.port = 8002;
+        // conf.storage_path = "/tmp/testdb2";
+        // participant p2{std::move(conf)};
+        // p2.start();
+        // std::cout << "server listening at localhost 8002" << std::endl;
+
         for (;;) {}
-        // std::unique_lock<std::mutex> lock(m);
-        // cond.wait(lock);
     }
 }

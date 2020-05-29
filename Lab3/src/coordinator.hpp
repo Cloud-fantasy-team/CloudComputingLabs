@@ -29,6 +29,9 @@ private:
     /// NOTE: This method will only be called once.
     void init_participants();
 
+    /// Perform recovery on a participant.
+    bool recover_participant(rpc::client &client);
+
     /// Heartbeat mechanism to detect participant failure.
     /// This function will be run as a single thread, and it'll be
     /// awaken when there are dead participants. This thread will try connecting

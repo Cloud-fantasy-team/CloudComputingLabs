@@ -20,7 +20,7 @@ HEADERS = src/configuration.hpp src/common.hpp src/command.hpp src/command_parse
 SOURCES = src/configuration.cpp src/command.cpp src/command_parser.cpp src/message.cpp src/errors.cpp src/participant.cpp src/coordinator.cpp
 OBJECTS = src/configuration.o src/command.o src/command_parser.o src/message.o src/errors.o src/participant.o src/coordinator.o
 
-EXECS = kvstore2pcsystem test_rpc test_command_parser test_system
+EXECS = kvstore2pcsystem test_rpc test_command_parser test_system participant_server
 
 all: src/tcp_server/libtcp_server.a third_party/rpclib/librpc.a third_party/leveldb/libleveldb.a ${EXECS}
 	@ echo build OK
