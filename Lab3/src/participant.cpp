@@ -315,9 +315,17 @@ struct participant::recover_t {
     recover_t(participant &p)
         : p_(p) {}
 
-    bool operator()(std::vector<char> data)
+    bool operator()(std::vector<char> data, std::set<std::string> del_keys)
     {
         std::cout << "RECOVER\n";
+        /// First apply the deleted keys.
+        for (auto &key : del_keys)
+        {
+            auto s = p_.db_->Delete(leveldb::WriteOptions(), key);
+            if (!s.ok())    return false;
+        }
+
+        /// Then update KV pairs.
         for (std::size_t i = 0; i < data.size(); )
         {
             std::vector<std::string> pair;

@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <map>
+#include <set>
 #include "command.hpp"
 #include "configuration.hpp"
 #include "rpc/client.h"
@@ -83,7 +84,10 @@ private:
     tcp_server svr_;
 
     /// Connections to participants.
-    std::map<std::string/* IP */, std::unique_ptr<rpc::client>> participants_;
+    std::map<std::string/* IP:port */, std::unique_ptr<rpc::client>> participants_;
+
+    /// Used for recovery. 
+    std::set<std::string> del_keys_;
 
     std::atomic<std::size_t> next_id_ = ATOMIC_VAR_INIT(0);
 

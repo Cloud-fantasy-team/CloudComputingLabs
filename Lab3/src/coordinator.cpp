@@ -72,16 +72,18 @@ void coordinator::heartbeat_participants()
                 client.set_timeout(200);
                 client.call("heartbeat");
 
-                {
-                    std::unique_lock<std::mutex> lock(participants_mutex_);
+                std::unique_lock<std::mutex> lock(participants_mutex_);
 
-                    std::string addr = addrs[i] + ":" + std::to_string(ports[i]);
-                    if (!participants_.count(addr))
+                std::string addr = addrs[i] + ":" + std::to_string(ports[i]);
+                if (!participants_.count(addr))
+                {
+                    /// We only add it back if we're done.
+                    std::cout << "going to recover participant at " << addr << std::endl;
+                    if (recover_participant(client))
                     {
-                        /// We only add it back if we're done.
-                        std::cout << "going to recover participant at " << addr << std::endl;
-                        if (recover_participant(client))
-                            participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addrs[i], ports[i]} };
+                        participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addrs[i], ports[i]} };
+                        if (participants_.size() == conf_.participant_addrs.size())
+                            del_keys_.clear();
                     }
                 }
 
@@ -122,8 +124,7 @@ bool coordinator::recover_participant(rpc::client &client)
             {
                 std::size_t id = next_id_;
                 client.set_timeout(300);
-                client.call("recover", snapshot);
-                std::cout << "recover rpc return\n";
+                client.call("recover", snapshot, del_keys_);
                 client.call("initial_next_id", id);
                 std::cout << "recover done\n";
                 return true;
@@ -401,7 +402,16 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
 
     /// COMMIT
     if (prepare_ok)
+    {
         commit_db_request(client, req.req_id, participant_dead);
+        
+        /// Record DEL cmd that'll be used to recover dead participants.
+        if (participants_.size() < conf_.participant_addrs.size())
+        {
+            auto keys = req.cmd.args();
+            del_keys_.insert(keys.begin(), keys.end());
+        }
+    }
     /// ABORT
     else
         abort_db_request(client, req.req_id, participant_dead);
