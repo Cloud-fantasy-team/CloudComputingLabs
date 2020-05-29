@@ -29,16 +29,7 @@ int main(int argc, const char *argv[])
     else
     {
         participant p{participant_configuration{}};
-        p.start();
         std::cout << "server listening at localhost 8001" << std::endl;
-
-        // participant_configuration conf;
-        // conf.port = 8002;
-        // conf.storage_path = "/tmp/testdb2";
-        // participant p2{std::move(conf)};
-        // p2.start();
-        // std::cout << "server listening at localhost 8002" << std::endl;
-
-        for (;;) {}
+        p.start();
     }
 }

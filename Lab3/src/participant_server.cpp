@@ -16,8 +16,6 @@ int main()
     conf.port = 8002;
     conf.storage_path = "/tmp/testdb2";
     participant p2{std::move(conf)};
-    p2.start();
     std::cout << "server listening at localhost 8002" << std::endl;
-
-    for(;;){}
+    p2.start();
 }

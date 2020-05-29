@@ -421,6 +421,20 @@ participant::~participant()
 
 void participant::start()
 {
+    if (is_started_)
+        __SERVER_THROW("coordinator has been started");
+
+    is_started_ = true;
+    svr_.async_run(conf_.num_worker - 1);
+    svr_.run();
+}
+
+void participant::async_start()
+{
+    if (is_started_)
+        __SERVER_THROW("coordinator has been started");
+
+    is_started_ = true;
     svr_.async_run(conf_.num_worker);
 }
 

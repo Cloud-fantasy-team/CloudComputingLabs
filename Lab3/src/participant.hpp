@@ -26,7 +26,11 @@ public:
 
     ~participant();
 
+    /// Start coordinator. Blocks current thread.
     void start();
+
+    /// Start coordinator in separate threads.
+    void async_start();
 
     static const std::string error_string;
     static const std::string update_ok_string;
@@ -95,6 +99,9 @@ private:
 
     /// Real storage.
     leveldb::DB *db_;
+
+    /// Flag indicates whether coordinator is started.
+    std::atomic<bool> is_started_ = ATOMIC_VAR_INIT(false);
 };
 
 } // namespace cdb

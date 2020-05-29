@@ -16,12 +16,33 @@ coordinator::coordinator(coordinator_configuration &&conf)
 
 void coordinator::start()
 {
+    if (is_started_)
+        __SERVER_THROW("coordinator has already started");
+
+    is_started_ = true;
+
     svr_.start(conf_.addr, 
                conf_.port,
                std::bind(&coordinator::handle_new_client, this, std::placeholders::_1));
 
     init_participants();
     heartbeat_participants();
+}
+
+/// Starts the heartbeat mechanism in a separate worker thread.
+void coordinator::async_start()
+{
+    if (is_started_)
+        __SERVER_THROW("coordinator has already started");
+
+    is_started_ = true;
+
+    svr_.start(conf_.addr,
+               conf_.port,
+               std::bind(&coordinator::handle_new_client, this, std::placeholders::_1));
+    
+    init_participants();
+    async_heartbeat_ = std::thread(std::bind(&coordinator::heartbeat_participants, this));
 }
 
 /// No locking is needed cause we'll only do it once.
@@ -37,23 +58,34 @@ void coordinator::init_participants()
     {
         auto &ip = conf_.participant_addrs[i];
         auto port = conf_.participant_ports[i];
-        auto addr = ip + ":" + std::to_string(port);
-        try
-        {
-            participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{ip, port} };
-            participants_[addr]->set_timeout(200);
-            
-            participants_[addr]->call("initial_next_id", initial_id).as<bool>();
-            /// TODO: If initial_next_id failed, it's probably the coordinator
-            /// has been restarted. We'll need to implement a recovery mechanism.
-            std::cout << "init participant " << addr << ":" << port;
-        }
-        catch (std::exception &err)
-        {
-            /// TODO: LOG.
-            std::cout << "remove participant\n";
-            participants_.erase(addr);
-        }
+        init_participant(ip, port);
+    }
+
+    /// Set flag.
+    if (participants_.empty())
+        init_participant_failed_ = true;
+}
+
+/// NOTE: The caller must acquired the lock.
+void coordinator::init_participant(std::string const &ip, uint16_t port)
+{
+    auto addr = ip + ":" + std::to_string(port);
+    std::size_t initial_id = next_id_;
+    try
+    {
+        participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{ip, port} };
+        participants_[addr]->set_timeout(200);
+        
+        participants_[addr]->call("initial_next_id", initial_id).as<bool>();
+        /// TODO: If initial_next_id failed, it's probably the coordinator
+        /// has been restarted. We'll need to implement a recovery mechanism.
+        std::cout << "init participant " << addr << ":" << port;
+    }
+    catch (std::exception &err)
+    {
+        /// TODO: LOG.
+        std::cout << "remove participant\n";
+        participants_.erase(addr);
     }
 }
 
@@ -77,9 +109,14 @@ void coordinator::heartbeat_participants()
                 std::string addr = addrs[i] + ":" + std::to_string(ports[i]);
                 if (!participants_.count(addr))
                 {
-                    /// We only add it back if we're done.
-                    std::cout << "going to recover participant at " << addr << std::endl;
-                    if (recover_participant(client))
+                    /// Add it back either because we've started the coordinator before the participants
+                    /// or participant failure occured.
+                    if (init_participant_failed_)
+                    {
+                        init_participant(addrs[i], ports[i]);
+                        if (!participants_.empty()) init_participant_failed_ = false;
+                    }
+                    else if (recover_participant(client))
                     {
                         participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addrs[i], ports[i]} };
                         if (participants_.size() == conf_.participant_addrs.size())
@@ -90,16 +127,27 @@ void coordinator::heartbeat_participants()
             }
             catch (std::exception &e) {
                 std::cout << "heartbeat failed\n";
+                /// NOTE: we don't check whether this is participant failure is caused by
+                /// the heartbeat itself, or a DB operation.
+                /// If it is caused by a heartbeat msg lost, we don't remove it from participant or 
+                /// try to recover this participant, since once a new DB operation is comming, this dead
+                /// participant will be removed from the working participant list and recovered.
+                /// Hence this saves us from sending unecessary snapshots and doing recovery when the
+                /// system is idle during the participant failure.
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        {
+            std::unique_lock<std::mutex> lock(participants_mutex_);
+            participants_cond_.wait_for(lock, std::chrono::seconds(1));
+        }
     }
 }
 
 bool coordinator::recover_participant(rpc::client &client)
 {
     std::cout << "recover_participant\n";
+
     // Lock is already acquired.
     while (!participants_.empty())
     {
@@ -136,6 +184,8 @@ bool coordinator::recover_participant(rpc::client &client)
             }
         }
     }
+
+    std::cout << "recovery failed because all participants were dead" << std::endl;
     return false;
 }
 
@@ -256,6 +306,7 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
                                         get_command cmd)
 {
     db_get_request req{0, std::move(cmd)};
+    bool participant_dead = false;
 
     {
         /// Acquire lock.
@@ -283,6 +334,7 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
                 // Remove this client.
                 /// TODO: LOG
                 participants_.erase(participants_.begin());
+                participant_dead = true;
                 std::cout << "handle_db_get_request remove participant" << std::endl;
             }
         }
@@ -290,6 +342,9 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
 
     /// If we've exhausted all dbs. The system is down.
     send_error(client);
+
+    if (participant_dead)
+        participants_cond_.notify_all();
 }
 
 void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client, 

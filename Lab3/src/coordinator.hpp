@@ -25,10 +25,14 @@ public:
     /// Starting the server.
     void start();
 
+    /// Asynchronously start the server.
+    void async_start();
+
 private:
     /// Called within ctors. Initializing participants.
     /// NOTE: This method will only be called once.
     void init_participants();
+    void init_participant(std::string const &ip, uint16_t port);
 
     /// Perform recovery on a participant.
     bool recover_participant(rpc::client &client);
@@ -94,6 +98,18 @@ private:
     /// Safety.
     std::mutex participants_mutex_;
     std::condition_variable participants_cond_;
+
+    /// Flag indicates whether coordinator is started.
+    std::atomic<bool> is_started_ = ATOMIC_VAR_INIT(false);
+
+    /// If the coordinator first comes into power and no participant has been started yet,
+    /// this flag will be set to true. Such that no matter in what order the operator starts
+    /// the system, the operation will succeed if at least one participant and the coordinator
+    /// itself are started.
+    std::atomic<bool> init_participant_failed_ = ATOMIC_VAR_INIT(false);
+
+    /// Only used when async_start() is called.
+    std::thread async_heartbeat_;
 };
 
 } // namespace cdb
