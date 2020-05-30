@@ -329,7 +329,7 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
 
                 auto value = p->call("get", req).as<std::string>();
                 send_result(client, value);
-                return;
+                goto PARTICIPANT_CHECK;
             } catch (std::exception &) {
                 // Remove this client.
                 /// TODO: LOG
@@ -343,6 +343,7 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
     /// If we've exhausted all dbs. The system is down.
     send_error(client);
 
+PARTICIPANT_CHECK:
     if (participant_dead)
         participants_cond_.notify_all();
 }
