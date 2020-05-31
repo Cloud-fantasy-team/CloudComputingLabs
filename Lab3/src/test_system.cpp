@@ -52,7 +52,7 @@ int main()
     tcp_client client;
     try 
     {
-        client.connect("localhost", 8080);
+        client.connect("localhost", 8001);
 
         std::vector<char> cmds_part_1{set_cmd.begin(), set_cmd.end()};
         cmds_part_1.insert(cmds_part_1.end(), get_cmd.begin(), get_cmd.begin() +20);

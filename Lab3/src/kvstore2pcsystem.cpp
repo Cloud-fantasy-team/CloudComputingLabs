@@ -3,47 +3,37 @@
 #include <iostream>
 #include <condition_variable>
 #include "coordinator.hpp"
-#include "participant.hpp"
 #include "configuration.hpp"
+#include "errors.hpp"
+#include "participant.hpp"
 #include "Flags.hh"
 using cdb::coordinator;
 using cdb::participant;
+using cdb::configuration;
 using cdb::coordinator_configuration;
 using cdb::participant_configuration;
+using cdb::configuration_manager;
 
 /// Helper
 static bool parse_addrs(std::string const &addrs, 
                         std::vector<std::string> &ips, 
                         std::vector<std::uint16_t> &ports)
 {
-    bool ok = true;
-    auto trim_ws = [](std::string const &s)
-    {
-        if (s.empty())  return s;
-        int idx = 0;
-        while (idx < s.size() && 
-               (s[idx] == ' ' || s[idx] == '\t' || s[idx] == '\n' || s[idx] == '\r'))
-            idx++;
-
-        int end_idx = s.size() - 1;
-        while (end_idx >= 0 &&
-               (s[end_idx] == ' ' || s[end_idx] == '\t' || s[end_idx] == '\n' || s[end_idx] == '\r'))
-            end_idx--;
-
-        return s.substr(idx, end_idx - idx + 1);
-    };
-
     auto split_addr = [](std::string const &addr, std::string &ip, std::uint16_t &port)
     {
-        int idx = 0;
-        while (idx < addr.size() && addr[idx] != ':')
-            idx++;
-        
-        if (idx == addr.size())
+        std::stringstream ss{addr};
+        if (!std::getline(ss, ip, ':'))
             return false;
 
-        ip = addr.substr(0, idx);
-        port = std::stoi(addr.substr(idx + 1));
+        try
+        {
+            std::string port_str;
+            if (!std::getline(ss, port_str))
+                return false;
+            port = std::stoi(port_str);
+        } 
+        catch (std::exception &e) { return false; }
+
         return true;
     };
 
@@ -60,7 +50,7 @@ static bool parse_addrs(std::string const &addrs,
         ports.push_back(port);
     }
 
-    return ok;
+    return true;
 }
 
 int main(int argc, char *argv[])
@@ -98,47 +88,74 @@ int main(int argc, char *argv[])
 
     std::vector<std::string> ip_addrs;
     std::vector<std::uint16_t> ports;
+    std::unique_ptr<configuration> conf_ptr = nullptr;
 
-    if (mode == "coordinator")
+    if (!config_path.empty())
+    {
+        configuration_manager conf_manager{};
+        auto conf_ = conf_manager.get_conf(config_path);
+        conf_ptr.reset(conf_.release());
+    }
+
+    /// TODO: Change these mess once we can merge conf.
+    if (mode == "coordinator" || (conf_ptr && conf_ptr->mode == configuration::COORDINATOR))
     {
         coordinator_configuration conf;
+        if (conf_ptr && conf_ptr->mode == configuration::COORDINATOR)
+        {
+            auto _conf_ptr = static_cast<coordinator_configuration*>(conf_ptr.get());
+            conf = std::move(*_conf_ptr);
+        }
+        else if (conf_ptr)
+            __CONF_THROW("misamatching config");
 
         if (!ip.empty())
             conf.addr = ip;
         if (port != 0)
             conf.port = port;
 
-        if (participant_addrs.empty())
+        if (conf.participant_addrs.empty() && participant_addrs.empty())
         {
             std::cerr << "coordinator was started with no participants" << std::endl;
             flags.PrintHelp(argv[0]);
             abort();
         }
 
-        if (!parse_addrs(participant_addrs, ip_addrs, ports))
+        if (!participant_addrs.empty() && !parse_addrs(participant_addrs, ip_addrs, ports))
         {
             std::cerr << "invalid participant addresses" << std::endl;
             flags.PrintHelp(argv[0]);
             abort();
         }
 
-        conf.participant_addrs = std::move(ip_addrs);
-        conf.participant_ports = std::move(ports);
+        /// Override .
+        if (!ip_addrs.empty())
+        {
+            conf.participant_addrs = std::move(ip_addrs);
+            conf.participant_ports = std::move(ports);
+        }
 
-        coordinator c{std::move(conf)};
         std::cout << "coordinator running at [" << conf.addr << ":" << conf.port << "]\n";
+        coordinator c{std::move(conf)};
         c.start();
     }
     else
     {
         participant_configuration conf;
+        if (conf_ptr && conf_ptr->mode == configuration::PARTICIPANT)
+        {
+            auto _conf_ptr = static_cast<participant_configuration*>(conf_ptr.get());
+            conf = std::move(*_conf_ptr);
+        }
+        else if (conf_ptr)
+            __CONF_THROW("misamatching config");
 
         if (!ip.empty())
             conf.addr = ip;
         if (port != 0)
             conf.port = port;
 
-        if (coordinator_addr.empty())
+        if (conf.coordinator_addr.empty() && coordinator_addr.empty())
         {
             std::cerr << "participant was started with no coordinator" << std::endl;
             flags.PrintHelp(argv[0]);
@@ -147,18 +164,22 @@ int main(int argc, char *argv[])
 
         std::vector<std::string> ip;
         std::vector<std::uint16_t> port;
-        if (!parse_addrs(coordinator_addr, ip, port))
+        if (!coordinator_addr.empty() && !parse_addrs(coordinator_addr, ip, port))
         {
             std::cerr << "invalid coordinator address" << std::endl;
             flags.PrintHelp(argv[0]);
             abort();
         }
 
-        conf.coordinator_addr = ip[0];
-        conf.coordinator_port = port[0];
+        /// Override.
+        if (!ip.empty())
+        {
+            conf.coordinator_addr = ip[0];
+            conf.coordinator_port = port[0];
+        }
 
-        participant p{std::move(conf)};
         std::cout << "participant running at [" << conf.addr << ":" << conf.port << "]\n";
+        participant p{std::move(conf)};
         p.start();
     }
 }

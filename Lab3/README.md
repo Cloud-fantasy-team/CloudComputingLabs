@@ -4,7 +4,7 @@
 
 # Cdb
 
-Cdb is simple key-value distributed data store.
+Cdb is simple key-value distributed key-value data store based on 2-phase commit and leveldb.
 
 ## Requirments
 

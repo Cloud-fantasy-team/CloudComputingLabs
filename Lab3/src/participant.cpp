@@ -391,7 +391,8 @@ participant::participant(participant_configuration &&conf)
 
     if (!status.ok())
     {
-        status = leveldb::DB::Open(options, conf_.storage_path + conf_.addr + ":" + std::to_string(conf_.port), &db_);
+        /// FIXME: Yea. Silly.
+        status = leveldb::DB::Open(options, conf_.storage_path + "_" + conf_.addr + ":" + std::to_string(conf_.port), &db_);
         if (!status.ok())
             __SERVER_THROW("unable to open storage");
     }
@@ -429,7 +430,7 @@ void participant::start()
         __SERVER_THROW("coordinator has been started");
 
     is_started_ = true;
-    svr_.async_run(conf_.num_worker - 1);
+    svr_.async_run(conf_.num_workers - 1);
     svr_.run();
 }
 
@@ -439,7 +440,7 @@ void participant::async_start()
         __SERVER_THROW("coordinator has been started");
 
     is_started_ = true;
-    svr_.async_run(conf_.num_worker);
+    svr_.async_run(conf_.num_workers);
 }
 
 }    // namespace cdb

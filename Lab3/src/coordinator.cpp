@@ -233,7 +233,7 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
         std::vector<char> data_copy{data};
         parse_db_requests(data_copy, cmds, bytes_parsed);
     }
-    catch (parse_incomplete_error &e)
+    catch (_parse_incomplete_error &e)
     {
         is_incomplete = true;
         parse_error = true;
