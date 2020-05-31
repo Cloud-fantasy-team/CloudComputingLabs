@@ -390,7 +390,11 @@ participant::participant(participant_configuration &&conf)
     auto status = leveldb::DB::Open(options, conf_.storage_path, &db_);
 
     if (!status.ok())
-        __SERVER_THROW("unable to open storage");
+    {
+        status = leveldb::DB::Open(options, conf_.storage_path + conf_.addr + ":" + std::to_string(conf_.port), &db_);
+        if (!status.ok())
+            __SERVER_THROW("unable to open storage");
+    }
 
     /// Bind 2PC functionalities.
     /// NOTE: the handler throws server_error and crashes if it reaches an inconsistent

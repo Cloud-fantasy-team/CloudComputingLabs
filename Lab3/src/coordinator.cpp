@@ -113,6 +113,7 @@ void coordinator::heartbeat_participants()
                     /// or participant failure occured.
                     if (init_participant_failed_)
                     {
+                        std::cout << "reinit participant [" << addrs[i] << ":" << ports[i] << "]" << std::endl;
                         init_participant(addrs[i], ports[i]);
                         if (!participants_.empty()) init_participant_failed_ = false;
                     }
@@ -123,7 +124,7 @@ void coordinator::heartbeat_participants()
                             del_keys_.clear();
                     }
                 }
-
+                std::cout << "heartbeat: participants_.size() == " << participants_.size() << std::endl;
             }
             catch (std::exception &e) {
                 std::cout << "heartbeat failed\n";

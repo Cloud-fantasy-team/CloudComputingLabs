@@ -9,7 +9,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/Lab3/kvstore2pcsystem",
-            "args": [],
+            "args": ["-h"],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",
             "environment": [],
