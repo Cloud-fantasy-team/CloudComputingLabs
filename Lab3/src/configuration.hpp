@@ -63,7 +63,7 @@ struct configuration {
     std::uint16_t port;
 
     /// Number of callback workers.
-    std::size_t num_workers;
+    std::size_t num_workers = 2;
 
     configuration() : mode(UNKNOWN) {}
     configuration(mode_t mode) : mode(mode) {}

@@ -1,3 +1,4 @@
+#include <iostream>
 #include "errors.hpp"
 #include "record.hpp"
 
@@ -96,8 +97,13 @@ void record_manager::log(const record &r)
     {
         /// Persist to disk.
         file_.write(binary.data(), binary.size());
-        /// Add to in-memory store.
-        records_.push_back(r);
+        std::cout << "persist record " << (int)r.status << " " << r.id << " " << r.next_id << std::endl;
+        
+        /// If an update is done, no need to keep it in memory.
+        if (r.status == RECORD_COMMIT_DONE || r.status == RECORD_ABORT_DONE)
+            records_.erase(r.id);
+        else
+            records_[r.id] = r;
     }
     catch (std::exception &e)
     {
@@ -115,13 +121,17 @@ void record_manager::init_records()
     {
         auto r = record::parse(std::vector<char>{ data.begin() + start, /* Begin */
                                                 data.begin() + start + record::record_size} /* End */);
+        next_id_ = r.next_id;
         /// Ignore resolved record.
         if (r.status == RECORD_ABORT_DONE || r.status == RECORD_COMMIT_DONE)
-            continue;
-
-        records_.push_back(r);
+            records_.erase(r.id);
+        else
+            records_[r.id] = r;
         start += record::record_size;
     }
+
+    if (records_.empty())
+        next_id_ = 0;
 }
 
 } // namespace cdb

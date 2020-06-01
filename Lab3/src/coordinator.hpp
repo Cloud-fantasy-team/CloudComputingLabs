@@ -8,6 +8,7 @@
 #include <set>
 #include "command.hpp"
 #include "configuration.hpp"
+#include "record.hpp"
 #include "rpc/client.h"
 #include "tcp_server/tcp_server.hpp"
 
@@ -29,6 +30,9 @@ public:
     void async_start();
 
 private:
+    /// Recover coordinator.
+    void recovery();
+
     /// Called within ctors. Initializing participants.
     /// NOTE: This method will only be called once.
     void init_participants();
@@ -63,8 +67,8 @@ private:
     void handle_db_del_request(std::shared_ptr<tcp_client> client, 
                                del_command cmd);
 
-    void commit_db_request(std::shared_ptr<tcp_client> client, std::size_t id, bool &participant_dead);
-    void abort_db_request(std::shared_ptr<tcp_client> client, std::size_t id, bool &participant_dead);
+    void commit_db_request(std::shared_ptr<tcp_client> client, std::uint32_t id, bool &participant_dead);
+    void abort_db_request(std::shared_ptr<tcp_client> client, std::uint32_t id, bool &participant_dead);
 
     /// Helper.
     void parse_db_requests(std::vector<char> &data, std::vector<std::unique_ptr<command> > &ret, std::size_t &bytes_parsed);
@@ -87,13 +91,16 @@ private:
     /// Underlying TCP server.
     tcp_server svr_;
 
+    /// Record manager.
+    record_manager r_manager_;
+
     /// Connections to participants.
     std::map<std::string/* IP:port */, std::unique_ptr<rpc::client>> participants_;
 
     /// Used for recovery. 
     std::set<std::string> del_keys_;
 
-    std::atomic<std::size_t> next_id_ = ATOMIC_VAR_INIT(0);
+    std::atomic<std::uint32_t> next_id_ = ATOMIC_VAR_INIT(0);
 
     /// Safety.
     std::mutex participants_mutex_;
@@ -107,6 +114,9 @@ private:
     /// the system, the operation will succeed if at least one participant and the coordinator
     /// itself are started.
     std::atomic<bool> init_participant_failed_ = ATOMIC_VAR_INIT(false);
+
+    /// Flag indicate whether the coordinator needs a recovery.
+    std::atomic<bool> need_recovery = ATOMIC_VAR_INIT(false);
 
     /// Only used when async_start() is called.
     std::thread async_heartbeat_;

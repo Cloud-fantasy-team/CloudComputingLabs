@@ -12,6 +12,7 @@ namespace cdb {
 coordinator::coordinator(coordinator_configuration &&conf)
     : conf_(std::move(conf))
     , svr_()
+    , r_manager_("coordinator.log")
     , participants_() {}
 
 void coordinator::start()
@@ -25,7 +26,7 @@ void coordinator::start()
                conf_.port,
                std::bind(&coordinator::handle_new_client, this, std::placeholders::_1));
 
-    init_participants();
+    recovery();
     heartbeat_participants();
 }
 
@@ -41,19 +42,61 @@ void coordinator::async_start()
                conf_.port,
                std::bind(&coordinator::handle_new_client, this, std::placeholders::_1));
     
-    init_participants();
+    recovery();
     async_heartbeat_ = std::thread(std::bind(&coordinator::heartbeat_participants, this));
 }
 
-/// No locking is needed cause we'll only do it once.
-void coordinator::init_participants()
+void coordinator::recovery()
 {
-    /// Rely on the good old rand and srand to set initial_next_id.
-    if (next_id_ == 0)
+    std::map<std::uint32_t, record> records { std::move(r_manager_.records()) };
+
+    /// If there's no operations before, randomly select a 
+    /// next_id_
+    if (r_manager_.next_id() == 0)
     {
         std::srand(std::time(nullptr));
         next_id_.store(std::rand());
+        std::cout << "random next_id\n";
     }
+    else
+    {
+        /// Restore previous next_id_.
+        next_id_ = r_manager_.next_id();
+        std::cout << "recover from r_manager: " << next_id_;
+        need_recovery = true;
+    }
+
+    /// Initialize participants.
+    init_participants();
+
+    bool participant_dead = false;
+    /// Handle all unhandled records.
+    for (auto &pair : records)
+    {
+        /// For any 
+        switch (pair.second.status)
+        {
+        /// Abort unresolved request.
+        case RECORD_UNRESOLVED:
+            abort_db_request(nullptr, pair.second.id, participant_dead);
+            break;
+        case RECORD_ABORT:
+            abort_db_request(nullptr, pair.second.id, participant_dead);
+            break;
+        case RECORD_COMMIT:
+            commit_db_request(nullptr, pair.second.id, participant_dead);
+            break;
+        default:
+            assert(0);
+            break;
+        }
+    }
+}
+
+void coordinator::init_participants()
+{
+    std::unique_lock<std::mutex> lock(participants_mutex_);
+
     int initial_id = next_id_;
 
     /// Create participant clients.
@@ -73,21 +116,28 @@ void coordinator::init_participants()
 void coordinator::init_participant(std::string const &ip, uint16_t port)
 {
     auto addr = ip + ":" + std::to_string(port);
-    std::size_t initial_id = next_id_;
+    std::uint32_t next_id = next_id_;
     try
     {
         participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{ip, port} };
         participants_[addr]->set_timeout(200);
-        
-        participants_[addr]->call("initial_next_id", initial_id).as<bool>();
-        /// TODO: If initial_next_id failed, it's probably the coordinator
-        /// has been restarted. We'll need to implement a recovery mechanism.
-        std::cout << "init participant " << addr << ":" << port;
+
+        /// Examine the the P's next_id first. If its next_id is not as new as the coordinator,
+        /// then the P needs a recovery.
+        auto _next_id = participants_[addr]->call("NEXT_ID").as<std::uint32_t>();
+        if (next_id_ != _next_id && need_recovery)
+        {
+            throw std::exception();
+        }
+
+        /// Set initial next id.
+        participants_[addr]->call("SET_NEXT_ID", next_id);
+        std::cout << "init participant " << addr << ":" << port << std::endl;
     }
     catch (std::exception &err)
     {
         /// TODO: LOG.
-        std::cout << "remove participant\n";
+        std::cout << "remove participant: " << err.what() << std::endl;
         participants_.erase(addr);
     }
 }
@@ -131,13 +181,6 @@ void coordinator::heartbeat_participants()
             }
             catch (std::exception &e) {
                 std::cout << "heartbeat failed\n";
-                /// NOTE: we don't check whether this is participant failure is caused by
-                /// the heartbeat itself, or a DB operation.
-                /// If it is caused by a heartbeat msg lost, we don't remove it from participant or 
-                /// try to recover this participant, since once a new DB operation is comming, this dead
-                /// participant will be removed from the working participant list and recovered.
-                /// Hence this saves us from sending unecessary snapshots and doing recovery when the
-                /// system is idle during the participant failure.
             }
         }
 
@@ -174,10 +217,10 @@ bool coordinator::recover_participant(rpc::client &client)
             std::cout << "snapshot OK\n";
             try
             {
-                std::size_t id = next_id_;
+                std::uint32_t id = next_id_;
                 client.set_timeout(300);
                 client.call("recover", snapshot, del_keys_);
-                client.call("initial_next_id", id);
+                client.call("SET_NEXT_ID", id);
                 std::cout << "recover done\n";
                 return true;
             }
@@ -356,6 +399,9 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
 {
     cmd.set_id(next_id_.fetch_add(1));
 
+    /// Persist the request info.
+    r_manager_.log({RECORD_UNRESOLVED, cmd.id(), next_id_});
+
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
     if (participants_.empty())
@@ -395,6 +441,8 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
 
     if (participants_.empty())
     {
+        /// Since all participant is dead, no abort rpc is needed to make.
+        r_manager_.log({ RECORD_ABORT_DONE, cmd.id(), next_id_ });
         send_error(client);
         client->disconnect(false);
         return;
@@ -480,9 +528,12 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
 }
 
 void coordinator::commit_db_request(std::shared_ptr<tcp_client> client, 
-                                    std::size_t id, 
+                                    std::uint32_t id, 
                                     bool &participant_dead) {
     std::string ret;
+
+    /// Log first.
+    r_manager_.log({ RECORD_COMMIT, id, next_id_ });
 
     /// Lock has required by caller.
     for (auto iter = participants_.begin(); iter != participants_.end(); )
@@ -505,13 +556,20 @@ void coordinator::commit_db_request(std::shared_ptr<tcp_client> client,
         iter++;
     }
 
-    send_result(client, ret);
+    /// Log done info.
+    r_manager_.log({ RECORD_COMMIT_DONE, id, next_id_ });
+    
+    /// Client is nullptr when it is called from recovery().
+    if (client != nullptr)
+        send_result(client, ret);
 }
 
 void coordinator::abort_db_request(std::shared_ptr<tcp_client> client, 
-                                   std::size_t id, 
+                                   std::uint32_t id, 
                                    bool &participant_dead) 
 {
+    r_manager_.log({ RECORD_ABORT, id, next_id_ });
+
     /// Lock has required by caller.
     for (auto iter = participants_.begin(); iter != participants_.end(); )
     {
@@ -532,7 +590,12 @@ void coordinator::abort_db_request(std::shared_ptr<tcp_client> client,
         }
         iter++;
     }
-    send_error(client);
+
+    r_manager_.log({ RECORD_ABORT_DONE, id, next_id_ });
+
+    /// client might be null when it comes from recovery.
+    if (client != nullptr)
+        send_error(client);
 }
 
 void

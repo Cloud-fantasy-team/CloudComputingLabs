@@ -117,49 +117,39 @@ struct participant::commit_handler_t {
     }
 
     /// Commits a request with [id] as req_id.
-    std::string operator()(std::size_t id)
+    std::string operator()(std::uint32_t id)
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
         std::cout << "COMMIT " << id << std::endl;
-        // We have reached to an inconsistent state.
-        if (p_.db_requests_.empty())
-            __SERVER_THROW("inconsistent state");
 
-        /// Wait until all requests before this requests to be either
-        /// committed or aborted.
-        /// The reason that iter->req_id != p_.next_id_ holds is because
-        /// the coordinator is capable of sending at most as many as the
-        /// number of callback worker threads that the participants have.
-        /// NOTE: we'll wait for 200 milli-seconds.
+        /// This request has been seen before.
+        /// And we return nothing because this is a coordinator recovery.
+        if (p_.next_id_ > id)
+            return "";
+
         if (p_.next_id_ < id)
-            p_.db_request_cond_.wait_for(lock, std::chrono::microseconds{200}, [&]{ return p_.next_id_ == id; });
+            __SERVER_THROW("inconsistent state");
 
         // Handle normal cases.
-        if (p_.next_id_ == id)
-        {
-            auto iter = p_.db_requests_.begin();
-            if (iter->get()->id() != p_.next_id_)
-                /// Coordinator's malfunctioning.
-                __SERVER_THROW("inconsistent state");
-
-            // Dispatching.
-            auto handler = dispatchers[iter->get()->type];
-            if (!handler)
-                __SERVER_THROW("unrecognizable command");
-
-            std::string ret = handler(iter->get());
-            
-            /// Update bookkeeping info.
-            p_.db_requests_.erase(p_.db_requests_.begin());
-            p_.next_id_.fetch_add(1);
-
-            p_.db_request_cond_.notify_all();
-            return ret;
-        }
-        else
-            /// Spurious wakeup.
+        auto iter = p_.db_requests_.begin();
+        if (iter->get()->id() != p_.next_id_)
+            /// Coordinator's malfunctioning.
             __SERVER_THROW("inconsistent state");
+
+        // Dispatching.
+        auto handler = dispatchers[iter->get()->type];
+        if (!handler)
+            __SERVER_THROW("unrecognizable command");
+
+        std::string ret = handler(iter->get());
+        
+        /// Update bookkeeping info.
+        p_.db_requests_.erase(p_.db_requests_.begin());
+        p_.next_id_.fetch_add(1);
+
+        p_.db_request_cond_.notify_all();
+        return ret;
     }
 
     /// Handle SET key value command.
@@ -226,40 +216,52 @@ struct participant::abort_handler_t {
         : p_(p) {}
 
     /// Aborts a request with [id].
-    bool operator()(std::size_t id)
+    bool operator()(std::uint32_t id)
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
         std::cout << "ABORT\n";
-        /// Same as commit.
-        if (p_.next_id_ != id)
-            p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]() { return p_.next_id_ == id; });
-
-        if (p_.next_id_ == id)
-        {
-            /// Upate bookkeeping info.
-            p_.db_requests_.erase(p_.db_requests_.begin());
-            p_.next_id_.fetch_add(1);
-
-            p_.db_request_cond_.notify_all();
+        /// This request has been seen before.
+        if (p_.next_id_ > id)
             return true;
-        }
-        else
-            /// Inconsistent state.
+
+        /// Same as commit.
+        if (p_.next_id_ < id)
             __SERVER_THROW("inconsistent state");
+            // p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]() { return p_.next_id_ == id; });
+
+
+        /// Upate bookkeeping info.
+        p_.db_requests_.erase(p_.db_requests_.begin());
+        p_.next_id_.fetch_add(1);
+
+        p_.db_request_cond_.notify_all();
+        return true;
     }
 
     participant &p_;
 };
 
-struct participant::set_initial_next_id_handler_t {
-    set_initial_next_id_handler_t(participant &p)
+struct participant::set_next_id_handler_t {
+    set_next_id_handler_t(participant &p)
         : p_(p) {}
 
-    bool operator()(ssize_t val)
+    void operator()(std::uint32_t val)
     {
-        ssize_t zero = 0;
-        return p_.next_id_.compare_exchange_strong(zero, val);
+        p_.next_id_ = val;
+    }
+
+    participant &p_;
+};
+
+struct participant::next_id_handler_t {
+    next_id_handler_t(participant &p)
+        : p_(p) {}
+
+    std::uint32_t operator()() const
+    {
+        std::cout << "next_id_handler: " << p_.next_id_ << std::endl;
+        return p_.next_id_;
     }
 
     participant &p_;
@@ -380,7 +382,8 @@ participant::participant(participant_configuration &&conf)
     , prepare_del_(new participant::prepare_del_t(*this))
     , commit_handler_(new participant::commit_handler_t(*this))
     , abort_handler_(new participant::abort_handler_t(*this))
-    , initial_next_id_(new participant::set_initial_next_id_handler_t(*this))
+    , set_next_id_handler_(new participant::set_next_id_handler_t(*this))
+    , next_id_handler_(new participant::next_id_handler_t(*this))
     , heartbeat_(new participant::heartbeat_t(*this))
     , get_snapshot_(new participant::get_snapshot_t(*this))
     , recover_(new participant::recover_t(*this))
@@ -406,7 +409,8 @@ participant::participant(participant_configuration &&conf)
     svr_.bind("prepare_del", *prepare_del_);
     svr_.bind("commit", *commit_handler_);
     svr_.bind("abort", *abort_handler_);
-    svr_.bind("initial_next_id", *initial_next_id_);
+    svr_.bind("SET_NEXT_ID", *set_next_id_handler_);
+    svr_.bind("NEXT_ID", *next_id_handler_);
     svr_.bind("heartbeat", *heartbeat_);
     svr_.bind("get_snapshot", *get_snapshot_);
     svr_.bind("recover", *recover_);
@@ -419,7 +423,7 @@ participant::~participant()
     delete prepare_del_;
     delete commit_handler_;
     delete abort_handler_;
-    delete initial_next_id_;
+    delete set_next_id_handler_;
     delete heartbeat_;
     delete get_snapshot_;
     delete recover_;

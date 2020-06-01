@@ -14,7 +14,7 @@ void parse(cdb::record_manager &manager)
 
     for (auto &r : records)
     {
-        std::cout << "record: " << (int)r.status << " " << r.id << " " << r.next_id << std::endl;
+        std::cout << "record: " << (int)r.second.status << " " << r.second.id << " " << r.second.next_id << std::endl;
     }
 }
 
@@ -39,8 +39,6 @@ int main(int argc, char **argv)
         flags.PrintHelp(argv[0]);
         exit(-1);
     }
-
-    std::cout << (int)status << std::endl;
 
     if (_log)
         log(manager, status, id, next_id);

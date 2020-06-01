@@ -41,7 +41,8 @@ private:
     struct prepare_del_t;
     struct commit_handler_t;
     struct abort_handler_t;
-    struct set_initial_next_id_handler_t;
+    struct set_next_id_handler_t;
+    struct next_id_handler_t;
     struct get_snapshot_t;
     struct recover_t;
     struct heartbeat_t;
@@ -51,7 +52,8 @@ private:
     friend prepare_del_t;
     friend commit_handler_t;
     friend abort_handler_t;
-    friend set_initial_next_id_handler_t;
+    friend set_next_id_handler_t;
+    friend next_id_handler_t;
     friend get_snapshot_t;
     friend recover_t;
     friend heartbeat_t;
@@ -77,7 +79,8 @@ private:
     prepare_del_t *prepare_del_;
     commit_handler_t *commit_handler_;
     abort_handler_t *abort_handler_;
-    set_initial_next_id_handler_t *initial_next_id_;
+    set_next_id_handler_t *set_next_id_handler_;
+    next_id_handler_t *next_id_handler_;
     heartbeat_t *heartbeat_;
     get_snapshot_t *get_snapshot_;
     recover_t *recover_;
@@ -90,7 +93,7 @@ private:
     /// The coordinator must rpc "initial_next_id" to set it.
     /// If the coordinator doesn't rpc "initial_next_id", participant will use the
     /// 0 as the initial next_id_.
-    std::atomic<ssize_t> next_id_ = ATOMIC_VAR_INIT(0);
+    std::atomic<std::uint32_t> next_id_ = ATOMIC_VAR_INIT(0);
 
     /// Synchronization.
     std::mutex db_request_mutex_;

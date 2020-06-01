@@ -8,6 +8,7 @@
 #include <string>
 #include <sstream>
 #include <fstream>
+#include <map>
 #include <vector>
 
 namespace cdb {
@@ -69,8 +70,10 @@ public:
     /// Log a record.
     void log(const record &r);
 
+    std::uint32_t next_id() const { return next_id_; }
+
     /// GETTER.
-    std::vector<record> &records() { return records_; }
+    std::map<std::uint32_t, record> &records() { return records_; }
 
 private:
     /// Initialize [records_]. Called within ctor.
@@ -80,8 +83,11 @@ private:
     /// Actual log file.
     std::fstream file_;
 
+    /// The up-to-date next_id to be set as the coordinator's next_id_.
+    std::uint32_t next_id_ = 0;
+
     /// In-memory records.
-    std::vector<record> records_;
+    std::map<std::uint32_t/* ID */, record> records_;
 };
 
 } // namespace cdb

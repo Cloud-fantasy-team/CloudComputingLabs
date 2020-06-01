@@ -13,4 +13,3 @@ test_rpc
 test_command_parser
 test_system
 test_record
-participant_server
