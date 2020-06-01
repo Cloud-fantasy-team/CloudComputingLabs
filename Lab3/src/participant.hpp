@@ -13,7 +13,6 @@
 #include <mutex>
 #include "leveldb/db.h"
 #include "rpc/server.h"
-#include "message.hpp"
 #include "configuration.hpp"
 
 namespace cdb {
@@ -59,11 +58,11 @@ private:
 
 private:
     /// Comparator.
-    struct db_request_cmp {
+    struct command_cmp {
         bool 
-        operator()(const db_request &lhs, const db_request &rhs) const
+        operator()(const std::unique_ptr<command> &lhs, const std::unique_ptr<command> &rhs) const
         {
-            return lhs.req_id < rhs.req_id;
+            return lhs->id() < rhs->id();
         }
     };
 
@@ -84,7 +83,7 @@ private:
     recover_t *recover_;
 
     /// Pending requests.
-    std::set<db_request, db_request_cmp> db_requests_;
+    std::set<std::unique_ptr<command>, command_cmp> db_requests_;
 
     /// Monotonically increasing number. We'll use 1 as increment.
     /// The coordinator must assign ids correctly.

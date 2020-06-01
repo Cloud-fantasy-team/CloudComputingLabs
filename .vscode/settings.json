@@ -81,6 +81,7 @@
         "coroutine": "cpp",
         "forward_list": "cpp",
         "unordered_set": "cpp",
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "filesystem": "cpp"
     }
 }

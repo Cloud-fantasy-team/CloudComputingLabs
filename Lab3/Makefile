@@ -16,9 +16,9 @@ else
 	endif
 endif
 
-HEADERS = src/configuration.hpp src/common.hpp src/command.hpp src/command_parser.hpp src/message.hpp src/errors.hpp src/participant.hpp src/coordinator.hpp
-SOURCES = src/configuration.cpp src/command.cpp src/command_parser.cpp src/message.cpp src/errors.cpp src/participant.cpp src/coordinator.cpp
-OBJECTS = src/configuration.o src/command.o src/command_parser.o src/message.o src/errors.o src/participant.o src/coordinator.o
+HEADERS = src/configuration.hpp src/common.hpp src/command.hpp src/command_parser.hpp src/errors.hpp src/participant.hpp src/coordinator.hpp
+SOURCES = src/configuration.cpp src/command.cpp src/command_parser.cpp src/errors.cpp src/participant.cpp src/coordinator.cpp
+OBJECTS = src/configuration.o src/command.o src/command_parser.o src/errors.o src/participant.o src/coordinator.o
 
 EXECS = kvstore2pcsystem test_rpc test_command_parser test_system participant_server
 

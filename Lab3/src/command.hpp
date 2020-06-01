@@ -31,6 +31,8 @@ public:
     /// Returns the args of this command. 
     /// NOTE: all args are serialized as std::string.
     virtual std::vector<std::string> args() = 0;
+    virtual void set_id(std::uint32_t) {}
+    virtual std::uint32_t id() const { return 0; }
 
     // Make it serializable.
     MSGPACK_DEFINE_ARRAY(type);
@@ -47,7 +49,7 @@ public:
     virtual ~get_command() = default;
 
     /// Assignment.
-    get_command& operator=(const get_command&);
+    get_command& operator=(get_command);
     get_command& operator=(get_command&&);
 
     /// GETTER.
@@ -59,6 +61,7 @@ public:
     MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), key_)
 
 private:
+    friend void swap(get_command &a, get_command &b);
     /// Key into the store.
     std::string key_;
 };
@@ -74,20 +77,28 @@ public:
     virtual ~set_command() = default;
 
     /// Assignment.
-    set_command& operator=(const set_command&);
+    set_command& operator=(set_command);
     set_command& operator=(set_command&&);
 
     /// GETTER.
+    virtual void set_id(std::uint32_t id) override { id_ = id; }
+    virtual std::uint32_t id() const override { return id_; }
+
     std::string &key() { return key_; }
     const std::string &key() const { return key_; }
+
     std::string &value() { return value_; }
     const std::string &value() const { return value_; }
 
     virtual std::vector<std::string> args() override;
 
-    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), key_, value_)
+    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), id_, key_, value_)
 
 private:
+    friend void swap(set_command &a, set_command &b);
+
+    /// id_ is init'd by coordinator.
+    std::uint32_t id_ = 0;
     std::string key_;
     std::string value_;
 };
@@ -103,16 +114,22 @@ public:
     virtual ~del_command() = default;
 
     /// Assignment.
-    del_command& operator=(const del_command&);
+    del_command& operator=(del_command);
     del_command& operator=(del_command&&);
 
+    virtual void set_id(std::uint32_t id) override { id_ = id; }
+    virtual std::uint32_t id() const override { return id_; }
     void set_keys(std::vector<std::string> const &keys) { keys_ = keys; }
 
     virtual std::vector<std::string> args() override;
 
-    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), keys_);
+    MSGPACK_DEFINE_ARRAY(MSGPACK_BASE(command), id_, keys_);
 
 private:
+    friend void swap(del_command &a, del_command &b);
+
+    /// id_ is init'd by coordinator.
+    std::uint32_t id_ = 0;
     std::vector<std::string> keys_;
 };
 

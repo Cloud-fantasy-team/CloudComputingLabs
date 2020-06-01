@@ -49,9 +49,12 @@ void coordinator::async_start()
 void coordinator::init_participants()
 {
     /// Rely on the good old rand and srand to set initial_next_id.
-    std::srand(std::time(nullptr));
-    int initial_id = std::rand();
-    next_id_.store(initial_id);
+    if (next_id_ == 0)
+    {
+        std::srand(std::time(nullptr));
+        next_id_.store(std::rand());
+    }
+    int initial_id = next_id_;
 
     /// Create participant clients.
     for (std::size_t i = 0; i < conf_.participant_addrs.size(); i++)
@@ -306,7 +309,6 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
 void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client, 
                                         get_command cmd)
 {
-    db_get_request req{0, std::move(cmd)};
     bool participant_dead = false;
 
     {
@@ -328,7 +330,7 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
                 auto &p = participants_.begin()->second;
                 p->set_timeout(300);
 
-                auto value = p->call("get", req).as<std::string>();
+                auto value = p->call("get", cmd).as<std::string>();
                 send_result(client, value);
                 goto PARTICIPANT_CHECK;
             } catch (std::exception &) {
@@ -352,7 +354,7 @@ PARTICIPANT_CHECK:
 void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client, 
                                         set_command cmd)
 {
-    db_set_request req{next_id_.fetch_add(1), std::move(cmd)};
+    cmd.set_id(next_id_.fetch_add(1));
 
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
@@ -373,9 +375,9 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
     {
         try
         {
-            std::cout << "prepare_set\n";
+            std::cout << "prepare_set " << cmd.id() << std::endl;;
             iter->second->set_timeout(300);
-            prepare_ok = iter->second->call("prepare_set", req).as<bool>();
+            prepare_ok = iter->second->call("prepare_set", cmd).as<bool>();
             if (!prepare_ok)
                 break;
             std::cout << "prepare_set ok\n";
@@ -401,11 +403,11 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
     /// COMMIT
     std::string ret;
     if (prepare_ok)
-        commit_db_request(client, req.req_id, participant_dead);
+        commit_db_request(client, cmd.id(), participant_dead);
 
     /// ABORT
     else
-        abort_db_request(client, req.req_id, participant_dead);
+        abort_db_request(client, cmd.id(), participant_dead);
 
     if (participant_dead)
         participants_cond_.notify_all();
@@ -414,7 +416,7 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
 void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client, 
                                         del_command cmd)
 {
-    db_del_request req{next_id_.fetch_add(1), std::move(cmd)};
+    cmd.set_id(next_id_.fetch_add(1));
 
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
@@ -435,7 +437,7 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
         try
         {
             iter->second->set_timeout(300);
-            prepare_ok = iter->second->call("prepare_del", req).as<bool>();
+            prepare_ok = iter->second->call("prepare_del", cmd).as<bool>();
             if (!prepare_ok)
                 break;
         } 
@@ -460,18 +462,18 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
     /// COMMIT
     if (prepare_ok)
     {
-        commit_db_request(client, req.req_id, participant_dead);
+        commit_db_request(client, cmd.id(), participant_dead);
         
         /// Record DEL cmd that'll be used to recover dead participants.
         if (participants_.size() < conf_.participant_addrs.size())
         {
-            auto keys = req.cmd.args();
+            auto keys = cmd.args();
             del_keys_.insert(keys.begin(), keys.end());
         }
     }
     /// ABORT
     else
-        abort_db_request(client, req.req_id, participant_dead);
+        abort_db_request(client, cmd.id(), participant_dead);
     
     if (participant_dead)
         participants_cond_.notify_all();

@@ -17,13 +17,13 @@ struct participant::get_handler_t {
         : p_(p) {}
 
     /// Simply return the results.
-    std::string operator()(db_get_request req)
+    std::string operator()(get_command get_cmd)
     {
-        std::string key = req.cmd.key();
+        std::string key = get_cmd.key();
         std::string value;
         leveldb::Status status = p_.db_->Get(leveldb::ReadOptions(), key, &value);
 
-        std::cout << "GET " << req.cmd.key() << std::endl;
+        std::cout << "GET " << key << std::endl;
         if (status.ok())
             return encode_result(value);
         else
@@ -62,14 +62,14 @@ struct participant::prepare_set_t {
     prepare_set_t(participant &p)
         : p_(p) {}
 
-    bool operator()(db_set_request req)
+    bool operator()(set_command set_cmd)
     {
         try {
             std::lock_guard<std::mutex> lock(p_.db_request_mutex_);
-            db_request generic_req{std::move(req)};
-            p_.db_requests_.insert(std::move(generic_req));
+            std::unique_ptr<command> cmd{ new set_command{std::move(set_cmd)} };
+            std::cout << "PREPARE SET " << cmd->id() << std::endl;
+            p_.db_requests_.insert(std::move(cmd));
 
-            std::cout << "PREPARE SET" << std::endl;
             return true;
         } catch (std::exception &e) {
             // LOG.
@@ -87,12 +87,13 @@ struct participant::prepare_del_t {
     prepare_del_t(participant &p)
         : p_(p) {}
 
-    bool operator()(db_del_request req)
+    bool operator()(del_command del_cmd)
     {
         try {
             std::lock_guard<std::mutex> lock(p_.db_request_mutex_);
-            db_request generic_req{std::move(req)};
-            p_.db_requests_.insert(std::move(generic_req));
+            std::unique_ptr<command> cmd{ new del_command(std::move(del_cmd)) };
+
+            p_.db_requests_.insert(std::move(cmd));
 
             std::cout << "PREPARE DEL \n";
             return true;
@@ -120,7 +121,7 @@ struct participant::commit_handler_t {
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
-        std::cout << "COMMIT" << std::endl;
+        std::cout << "COMMIT " << id << std::endl;
         // We have reached to an inconsistent state.
         if (p_.db_requests_.empty())
             __SERVER_THROW("inconsistent state");
@@ -138,16 +139,16 @@ struct participant::commit_handler_t {
         if (p_.next_id_ == id)
         {
             auto iter = p_.db_requests_.begin();
-            if (iter->req_id != p_.next_id_)
+            if (iter->get()->id() != p_.next_id_)
                 /// Coordinator's malfunctioning.
                 __SERVER_THROW("inconsistent state");
 
             // Dispatching.
-            auto handler = dispatchers[iter->cmd->type];
+            auto handler = dispatchers[iter->get()->type];
             if (!handler)
                 __SERVER_THROW("unrecognizable command");
 
-            std::string ret = handler(iter->cmd.get());
+            std::string ret = handler(iter->get());
             
             /// Update bookkeeping info.
             p_.db_requests_.erase(p_.db_requests_.begin());
