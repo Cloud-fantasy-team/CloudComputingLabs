@@ -4,7 +4,7 @@
 namespace tcp_server_lib {
 
 tcp_client::tcp_client()
-    : reactor_(&global_reactor)
+    : reactor_(get_default_reactor())
     , on_disconnection_(nullptr) {}
 
 tcp_client::~tcp_client()
@@ -13,7 +13,7 @@ tcp_client::~tcp_client()
 }
 
 tcp_client::tcp_client(tcp_socket&& socket)
-    : reactor_(&global_reactor)
+    : reactor_(get_default_reactor())
     , socket_(std::move(socket))
     , is_connected_(true)
     , on_disconnection_(nullptr) {}

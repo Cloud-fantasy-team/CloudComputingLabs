@@ -7,7 +7,7 @@ namespace tcp_server_lib
 {
 
 tcp_server::tcp_server()
-    : reactor_(&global_reactor)
+    : reactor_(get_default_reactor())
     , on_new_connection_cb_(nullptr) {}
 
 tcp_server::~tcp_server()

@@ -14,7 +14,7 @@ namespace tcp_server_lib {
 class reactor;
 
 /// Singleton.
-extern reactor global_reactor;
+reactor *get_default_reactor();
 
 /// Reactor class deviates a bit from the original
 /// paper's description. The reactor consists of a

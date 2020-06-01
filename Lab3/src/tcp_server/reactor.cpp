@@ -4,7 +4,14 @@
 namespace tcp_server_lib
 {
 
-reactor global_reactor{2};
+static std::unique_ptr<reactor> default_reactor;
+reactor *get_default_reactor()
+{
+    if (default_reactor == nullptr)
+        default_reactor.reset(new reactor{2});
+
+    return default_reactor.get();
+}
 
 reactor::reactor(std::size_t thread_num)
     : callback_workers_(thread_num)

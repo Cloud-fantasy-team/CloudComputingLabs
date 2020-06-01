@@ -431,7 +431,8 @@ void participant::start()
         __SERVER_THROW("coordinator has been started");
 
     is_started_ = true;
-    svr_.async_run(conf_.num_workers - 1);
+    if (conf_.num_workers != 1)
+        svr_.async_run(conf_.num_workers - 1);
     svr_.run();
 }
 

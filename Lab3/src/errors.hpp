@@ -4,6 +4,11 @@
 #include <string>
 #include <stdexcept>
 
+#define __RECORD_THROW(msg)                                                             \
+    {                                                                                   \
+        throw cdb::_log_error((msg), __FILE__, __LINE__);                               \
+    }
+
 #define __CONF_THROW(msg)                                                               \
     {                                                                                   \
         throw cdb::_config_error((msg), __FILE__, __LINE__);                            \
@@ -50,6 +55,7 @@ DECLARE_RUNTIME_ERROR(config_error);
 DECLARE_RUNTIME_ERROR(parse_incomplete_error);
 DECLARE_RUNTIME_ERROR(parse_syntax_error);
 DECLARE_RUNTIME_ERROR(server_error);
+DECLARE_RUNTIME_ERROR(log_error);
 
 } // namespace cdb
 
