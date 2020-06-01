@@ -404,16 +404,16 @@ participant::participant(participant_configuration &&conf)
     /// Bind 2PC functionalities.
     /// NOTE: the handler throws server_error and crashes if it reaches an inconsistent
     /// state, which is usually caused by failure of coordinator.
-    svr_.bind("get", *get_handler_);
-    svr_.bind("prepare_set", *prepare_set_);
-    svr_.bind("prepare_del", *prepare_del_);
-    svr_.bind("commit", *commit_handler_);
+    svr_.bind("GET", *get_handler_);
+    svr_.bind("PREPARE_SET", *prepare_set_);
+    svr_.bind("PREPARE_DEL", *prepare_del_);
+    svr_.bind("COMMIT", *commit_handler_);
     svr_.bind("abort", *abort_handler_);
     svr_.bind("SET_NEXT_ID", *set_next_id_handler_);
     svr_.bind("NEXT_ID", *next_id_handler_);
-    svr_.bind("heartbeat", *heartbeat_);
-    svr_.bind("get_snapshot", *get_snapshot_);
-    svr_.bind("recover", *recover_);
+    svr_.bind("HEARTBEAT", *heartbeat_);
+    svr_.bind("GET_SNAPSHOT", *get_snapshot_);
+    svr_.bind("RECOVER", *recover_);
 }
 
 participant::~participant()

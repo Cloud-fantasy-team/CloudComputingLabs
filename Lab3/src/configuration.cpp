@@ -97,7 +97,7 @@ configuration_manager::get_conf(const std::string &conf_path)
     while (std::getline(conf_str, line))
     {
         /// Ignore comment lines.
-        if (line[0] == '!') continue;
+        if (line[0] == '!' || line.empty()) continue;
 
         std::string op, value;
         if (!get_option(line, op, value))

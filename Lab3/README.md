@@ -6,7 +6,7 @@
 
 Cdb is simple distributed key-value data store that utilizes 2-phase commit and leveldb. It consists of one coordinator and multiple participants. The client interacts with the coordinator using a simplified RESP message format over a TCP connection, while the coordinator sends RPC to all its participants.
 
-Cdb implements the requirements of the [Extreme version](https://github.com/1989chenguo/CloudComputingLabs/tree/master/Lab3#353-extreme-version) of the[CloudComputingLabs](https://github.com/1989chenguo/CloudComputingLabs/tree/master/Lab3). This means that the following claims hold:
+Cdb implements the requirements of the [Extreme version](https://github.com/1989chenguo/CloudComputingLabs/tree/master/Lab3#353-extreme-version) of the [CloudComputingLabs](https://github.com/1989chenguo/CloudComputingLabs/tree/master/Lab3). This means that the following claims hold:
 
 - The system supports only `GET`, `SET` and `DEL` commands. All commands are sent in a simplied RESP format to coordinator.
 - The system can tolerate at most N - 1 participants failures, where N is the number of participants, and

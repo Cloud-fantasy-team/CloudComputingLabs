@@ -3,6 +3,7 @@
 #include <iostream>
 #include <chrono>
 #include "errors.hpp"
+#include "common.hpp"
 #include "command_parser.hpp"
 #include "coordinator.hpp"
 #include "participant.hpp"
@@ -120,7 +121,7 @@ void coordinator::init_participant(std::string const &ip, uint16_t port)
     try
     {
         participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{ip, port} };
-        participants_[addr]->set_timeout(200);
+        participants_[addr]->set_timeout(RPC_TIMEOUT);
 
         /// Examine the the P's next_id first. If its next_id is not as new as the coordinator,
         /// then the P needs a recovery.
@@ -154,8 +155,8 @@ void coordinator::heartbeat_participants()
             try
             {
                 rpc::client client{addrs[i], ports[i]};
-                client.set_timeout(200);
-                client.call("heartbeat");
+                client.set_timeout(RPC_TIMEOUT);
+                client.call("HEARTBEAT");
 
                 std::unique_lock<std::mutex> lock(participants_mutex_);
 
@@ -202,8 +203,8 @@ bool coordinator::recover_participant(rpc::client &client)
         bool snapshot_ok = false;
         try
         {
-            participants_.begin()->second->set_timeout(300);
-            snapshot = std::move(participants_.begin()->second->call("get_snapshot").as<std::vector<char>>());
+            participants_.begin()->second->set_timeout(RPC_TIMEOUT);
+            snapshot = std::move(participants_.begin()->second->call("GET_SNAPSHOT").as<std::vector<char>>());
             snapshot_ok = true;
         }
         catch(const std::exception& e)
@@ -218,8 +219,8 @@ bool coordinator::recover_participant(rpc::client &client)
             try
             {
                 std::uint32_t id = next_id_;
-                client.set_timeout(300);
-                client.call("recover", snapshot, del_keys_);
+                client.set_timeout(RPC_TIMEOUT);
+                client.call("RECOVER", snapshot, del_keys_);
                 client.call("SET_NEXT_ID", id);
                 std::cout << "recover done\n";
                 return true;
@@ -345,7 +346,6 @@ void coordinator::handle_db_requests(std::shared_ptr<tcp_client> client,
     catch (std::runtime_error &e)
     {
         /// TODO: LOG
-        client->disconnect(false);
     }
 }
 
@@ -362,7 +362,6 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
         {
             /// The system cannot function.
             send_error(client);
-            client->disconnect(false);
             return;
         }
 
@@ -371,10 +370,10 @@ void coordinator::handle_db_get_request(std::shared_ptr<tcp_client> client,
         {
             try {
                 auto &p = participants_.begin()->second;
-                p->set_timeout(300);
+                p->set_timeout(RPC_TIMEOUT);
 
-                auto value = p->call("get", cmd).as<std::string>();
-                send_result(client, value);
+                auto value = p->call("GET", cmd).as<std::string>();
+                send_result(client, value, nullptr);
                 goto PARTICIPANT_CHECK;
             } catch (std::exception &) {
                 // Remove this client.
@@ -409,7 +408,6 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
         std::cout << "participant empty" << std::endl;
         /// The system cannot function.
         send_error(client);
-        client->disconnect(false);
         return;
     }
 
@@ -422,8 +420,8 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
         try
         {
             std::cout << "prepare_set " << cmd.id() << std::endl;;
-            iter->second->set_timeout(300);
-            prepare_ok = iter->second->call("prepare_set", cmd).as<bool>();
+            iter->second->set_timeout(RPC_TIMEOUT);
+            prepare_ok = iter->second->call("PREPARE_SET", cmd).as<bool>();
             if (!prepare_ok)
                 break;
             std::cout << "prepare_set ok\n";
@@ -444,7 +442,6 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
         /// Since all participant is dead, no abort rpc is needed to make.
         r_manager_.log({ RECORD_ABORT_DONE, cmd.id(), next_id_ });
         send_error(client);
-        client->disconnect(false);
         return;
     }
 
@@ -473,7 +470,6 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
         std::cout << "participant empty" << std::endl;
         /// The system cannot function.
         send_error(client);
-        client->disconnect(false);
         return;
     }
 
@@ -484,8 +480,8 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
     {
         try
         {
-            iter->second->set_timeout(300);
-            prepare_ok = iter->second->call("prepare_del", cmd).as<bool>();
+            iter->second->set_timeout(RPC_TIMEOUT);
+            prepare_ok = iter->second->call("PREPARE_DEL", cmd).as<bool>();
             if (!prepare_ok)
                 break;
         } 
@@ -503,7 +499,6 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
     if (participants_.empty())
     {
         send_error(client);
-        client->disconnect(false);
         return;
     }
 
@@ -541,8 +536,12 @@ void coordinator::commit_db_request(std::shared_ptr<tcp_client> client,
         try
         {
             std::cout << "before commit" << std::endl;
-            iter->second->set_timeout(300);
-            ret = iter->second->call("commit", id).as<std::string>();
+            iter->second->set_timeout(RPC_TIMEOUT);
+            if (ret.empty())
+                ret = iter->second->call("COMMIT", id).as<std::string>();
+            else
+                iter->second->call("COMMIT", id).as<std::string>();
+
             std::cout << "commit result: " << ret << std::endl;
         }
         catch (std::exception &e)
@@ -561,7 +560,7 @@ void coordinator::commit_db_request(std::shared_ptr<tcp_client> client,
     
     /// Client is nullptr when it is called from recovery().
     if (client != nullptr)
-        send_result(client, ret);
+        send_result(client, ret, nullptr);
 }
 
 void coordinator::abort_db_request(std::shared_ptr<tcp_client> client, 
@@ -575,9 +574,9 @@ void coordinator::abort_db_request(std::shared_ptr<tcp_client> client,
     {
         try
         {
-            iter->second->set_timeout(300);
+            iter->second->set_timeout(RPC_TIMEOUT);
             /// If abort rpc returns false, basically it's malfunctioning.
-            if (!iter->second->call("abort", id).as<bool>())
+            if (!iter->second->call("ABORT", id).as<bool>())
                 throw std::exception();
         }
         catch (std::exception &e)
@@ -636,21 +635,23 @@ void coordinator::handle_command_error(std::shared_ptr<tcp_client> client,
     catch(std::runtime_error &e)
     {
         /// TODO: LOG
-        client->disconnect(false);
     }
 }
 
 void coordinator::send_error(std::shared_ptr<tcp_client> client)
 {
-    send_result(client, participant::error_string);
+    std::cout << "send_error\n";
+    send_result(client, participant::error_string, [=](tcp_client::write_result &) {
+        client->disconnect(false);
+    });
 }
 
-void coordinator::send_result(std::shared_ptr<tcp_client> client, std::string const &msg)
+void coordinator::send_result(std::shared_ptr<tcp_client> client, std::string const &msg, tcp_client::write_callback_t cb)
 {
     try {
         client->async_write({
             std::vector<char>{msg.begin(), msg.end()},
-            nullptr
+            cb
         });
     } catch(std::runtime_error &e) {
         /// TODO: LOG

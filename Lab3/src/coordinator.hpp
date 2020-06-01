@@ -79,7 +79,7 @@ private:
                               bool is_incomplete);
 
     /// Sends a result back to client.
-    void send_result(std::shared_ptr<tcp_client> client, std::string const &ret);
+    void send_result(std::shared_ptr<tcp_client> client, std::string const &ret, tcp_client::write_callback_t cb);
 
     /// Sends an error msg.
     void send_error(std::shared_ptr<tcp_client> client);
