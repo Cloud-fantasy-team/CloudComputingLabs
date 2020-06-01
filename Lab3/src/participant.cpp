@@ -408,7 +408,7 @@ participant::participant(participant_configuration &&conf)
     svr_.bind("PREPARE_SET", *prepare_set_);
     svr_.bind("PREPARE_DEL", *prepare_del_);
     svr_.bind("COMMIT", *commit_handler_);
-    svr_.bind("abort", *abort_handler_);
+    svr_.bind("ABORT", *abort_handler_);
     svr_.bind("SET_NEXT_ID", *set_next_id_handler_);
     svr_.bind("NEXT_ID", *next_id_handler_);
     svr_.bind("HEARTBEAT", *heartbeat_);

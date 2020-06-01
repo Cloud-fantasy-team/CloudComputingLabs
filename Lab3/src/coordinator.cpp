@@ -182,6 +182,11 @@ void coordinator::heartbeat_participants()
             }
             catch (std::exception &e) {
                 std::cout << "heartbeat failed\n";
+
+                std::unique_lock<std::mutex> lock(participants_mutex_);
+                std::string addr = addrs[i] + ":" + std::to_string(ports[i]);
+                if (participants_.count(addr))
+                    participants_.erase(addr);
             }
         }
 
