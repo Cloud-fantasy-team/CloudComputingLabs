@@ -97,6 +97,7 @@ void record_manager::log(const record &r)
     {
         /// Persist to disk.
         file_.write(binary.data(), binary.size());
+        file_.flush();
         std::cout << "persist record " << (int)r.status << " " << r.id << " " << r.next_id << std::endl;
         
         /// If an update is done, no need to keep it in memory.
