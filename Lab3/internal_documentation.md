@@ -12,7 +12,7 @@ Simple as it is. It returns a string representing the value associated with the 
 ### SET_PREPARE RPC
 The 1st phase of 2PC. It takes a `set_command` object as its parameter. It returns a bool value. True for OK and false for NO. The reason that SET_PREPARE and DEL_PREPARE was designed as separate RPCs is because I wasn't giving too much of a thought. They could be one instead.
 
-### SET_DEL RPC
+### DEL_PREPARE RPC
 Ditto.
 
 ### COMMIT RPC
