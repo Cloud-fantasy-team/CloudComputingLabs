@@ -23,6 +23,13 @@ public:
     /// ctors.
     participant(participant_configuration &&conf);
 
+    /// No copy ctor.
+    /// Yeah, no move either.
+    participant(const participant&) = delete;
+    participant(participant &&p) = delete;
+    participant &operator=(participant) = delete;
+    participant &operator=(participant &&) = delete;
+
     ~participant();
 
     /// Start coordinator. Blocks current thread.
