@@ -9,7 +9,11 @@ Cdb is simple distributed key-value data store that utilizes 2-phase commit and 
 Cdb implements the requirements of the [Extreme version](https://github.com/1989chenguo/CloudComputingLabs/tree/master/Lab3#353-extreme-version) of the [CloudComputingLabs](https://github.com/1989chenguo/CloudComputingLabs/tree/master/Lab3). This means that the following claims hold:
 
 - The system supports only `GET`, `SET` and `DEL` commands. All commands are sent in a simplied RESP format to coordinator.
-- The system can tolerate at most N - 1 participants failures, where N is the number of participants. If all participants failed, the coordinator must be restarted because of current limited implementation of participant recovery.
+- The system can function correctly(without inconsistency) as long as both the following conditions hold:
+    - the coordinator is up and running and
+    - at least one participant is *working correctly*. 
+    
+    By working correctly, we mean that the coordinator is as up-to-date as the coordinator and is capable of communicating with the coordinator. If however, one of the above two conditions does not hold, it requires intervention to satisfy them. In most cases, where there's no physical damage, all you have to do is to restart the dead servers.
 - The system can tolerate the coordinator failures. If the coordinator fails when it's idle, nothing fancy happens. However, if the coordinator fails during a 2PC update, there're 2 scenarios needed to pay attention to:
     - if the coordinator has resolved the client request, i.e., either to commit or abort, then the corresponding action will be taken place when the coordinator comes online again. 
     - if the coordinator has not resolved the client request, i.e., the coordinator hasn't received all `PREPARE_OK` messages(from its current set of participants at that moment), then abort will be taken place when the coordinator comes online again.
