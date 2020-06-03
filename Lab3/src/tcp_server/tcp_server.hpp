@@ -46,7 +46,7 @@ private:
     reactor *reactor_;
 
     /// Indicator.
-    std::atomic<bool> is_running_;
+    std::atomic<bool> is_running_ = ATOMIC_VAR_INIT(false);
 
     /// Underlying listening socket.
     tcp_socket socket_;
