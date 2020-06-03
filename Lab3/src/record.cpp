@@ -78,7 +78,8 @@ record_manager
 */
 
 record_manager::record_manager(std::string const &file_name)
-    : file_(file_name, std::fstream::app | std::fstream::binary | std::fstream::in | std::fstream::out)
+    : file_name_(file_name)
+    , file_(file_name, std::fstream::app | std::fstream::binary | std::fstream::in | std::fstream::out)
     , cmd_file_("cmd_" + file_name, std::fstream::app | std::fstream::binary | std::fstream::in | std::fstream::out)
 {
     if (!file_.is_open())
@@ -105,7 +106,31 @@ void record_manager::log(const record &r)
         std::cout << "persist record " << (int)r.status << " " << r.id << " " << r.next_id << std::endl;
 
         if (r.status == RECORD_ABORT_DONE || r.status == RECORD_COMMIT_DONE)
+        {
             records_.erase(r.id);
+
+            /// Clear the contents of the log.
+            if (records_.empty())
+            {
+                file_.close();
+                cmd_file_.close();
+
+                /// Haha! I don't know a more canonical way to delete the file_content.
+                {
+                    std::ofstream tmp{ file_name_, std::ios::out | std::ios::trunc };
+                    std::ofstream tmp2{ "cmd_" + file_name_, std::ios::out | std::ios::trunc };
+                }
+
+                file_.open(file_name_, std::fstream::app | std::fstream::binary | std::fstream::in | std::fstream::out);
+                cmd_file_.open("cmd_" + file_name_, std::fstream::app | std::fstream::binary | std::fstream::in | std::fstream::out);
+                file_.seekg(std::ios::beg);
+                cmd_file_.seekg(std::ios::beg);
+
+                // Preserve at least one record to help finding next_id
+                file_.write(reinterpret_cast<const char*>(binary.data()), binary.size());
+                file_.flush();
+            }
+        }
         else
             records_[r.id] = r;
     }

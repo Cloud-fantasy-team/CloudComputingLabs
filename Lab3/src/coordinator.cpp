@@ -588,7 +588,9 @@ void coordinator::commit_db_request(std::shared_ptr<tcp_client> client,
 
     /// Log done info only if at least one participant has it committed.
     if (!participants_.empty())
+    {
         r_manager_.log({ RECORD_COMMIT_DONE, id, next_id_ });
+    }
     
     /// Client is nullptr when it is called from recovery().
     if (client != nullptr)
@@ -625,7 +627,9 @@ void coordinator::abort_db_request(std::shared_ptr<tcp_client> client,
 
     /// Log this info only if at least one participant has this message.
     if (!participants_.empty())
+    {
         r_manager_.log({ RECORD_ABORT_DONE, id, next_id_ });
+    }
 
     /// client might be null when it comes from recovery.
     if (client != nullptr)

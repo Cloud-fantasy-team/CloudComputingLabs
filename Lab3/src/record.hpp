@@ -77,6 +77,7 @@ private:
 };
 
 /// Record_manager used by the coordinator to persist update request info.
+/// NOTE: this class is not thread-safe. Use external locking to prevent data races.
 class record_manager {
 public:
     /// [file_name] is the name of the log.
@@ -99,6 +100,9 @@ private:
     void init_records();
 
 private:
+    /// Name of the log file.
+    std::string file_name_;
+
     /// Actual log file.
     std::fstream file_;
     std::fstream cmd_file_;

@@ -97,9 +97,11 @@ private:
     tcp_server svr_;
 
     /// Record manager.
+    /// NOTE: also protected by [participants_mutex].
     record_manager r_manager_;
 
     /// Connections to participants.
+    /// NOTE: protected by [participants_mutex].
     std::map<std::string/* IP:port */, std::unique_ptr<rpc::client>> participants_;
 
     /// Used for recovery. 

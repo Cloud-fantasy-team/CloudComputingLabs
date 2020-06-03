@@ -5,6 +5,6 @@
 #define PARSER_BUFF_SIZE    256
 
 /// Timeout in milliseconds.
-#define RPC_TIMEOUT         1000
+#define RPC_TIMEOUT         600
 
 #endif
