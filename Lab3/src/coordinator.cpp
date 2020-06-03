@@ -49,31 +49,33 @@ void coordinator::async_start()
 
 void coordinator::recovery()
 {
-    std::map<std::uint32_t, record> records { std::move(r_manager_.records()) };
-
-    /// If there's no operations before, randomly select a 
-    /// next_id_
-    if (r_manager_.next_id() == 0)
+    /// next_id_ initialization.
+    next_id_ = r_manager_.next_id();
+    if (next_id_ == 0)
     {
         std::srand(std::time(nullptr));
         next_id_.store(std::rand());
+        is_recovered = false;
         std::cout << "random next_id\n";
     }
-    else
-    {
-        /// Restore previous next_id_.
-        next_id_ = r_manager_.next_id();
-        std::cout << "recover from r_manager: " << next_id_;
-        need_recovery = true;
-    }
+    std::cout << "recovery next_id_: " << next_id_ << std::endl;
 
     /// Initialize participants.
     init_participants();
+    handle_unfinished_records();
+}
 
+void coordinator::handle_unfinished_records()
+{
+    std::cout << "handle_unfinished_records with size == " << r_manager_.records().size() << std::endl;
     bool participant_dead = false;
-    /// Handle all unhandled records.
+    /// Make a copy!
+    std::map<std::uint32_t, record> records{ r_manager_.records().begin(), r_manager_.records().end() };
+
+    /// Handle all unfinished records.
     for (auto &pair : records)
     {
+        std::cout << "handle_unfinished_records r id: " << pair.second.id << std::endl;
         /// For any 
         switch (pair.second.status)
         {
@@ -92,13 +94,12 @@ void coordinator::recovery()
             break;
         }
     }
+    std::cout << "handle_unfinished_records returned\n";
 }
 
 void coordinator::init_participants()
 {
     std::unique_lock<std::mutex> lock(participants_mutex_);
-
-    int initial_id = next_id_;
 
     /// Create participant clients.
     for (std::size_t i = 0; i < conf_.participant_addrs.size(); i++)
@@ -107,17 +108,12 @@ void coordinator::init_participants()
         auto port = conf_.participant_ports[i];
         init_participant(ip, port);
     }
-
-    /// Set flag.
-    if (participants_.empty())
-        init_participant_failed_ = true;
 }
 
 /// NOTE: The caller must acquired the lock.
 void coordinator::init_participant(std::string const &ip, uint16_t port)
 {
     auto addr = ip + ":" + std::to_string(port);
-    std::uint32_t next_id = next_id_;
     try
     {
         participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{ip, port} };
@@ -125,15 +121,24 @@ void coordinator::init_participant(std::string const &ip, uint16_t port)
 
         /// Examine the the P's next_id first. If its next_id is not as new as the coordinator,
         /// then the P needs a recovery.
-        auto _next_id = participants_[addr]->call("NEXT_ID").as<std::uint32_t>();
-        if (next_id_ != _next_id && need_recovery)
+        auto p_next_id = participants_[addr]->call("NEXT_ID").as<std::uint32_t>();
+
+        if (!is_recovered)
         {
-            throw std::exception();
+            participants_[addr]->call("SET_NEXT_ID", next_id_.fetch_add(0));
+            goto PARTICIPANT_UP_TO_DATE;
         }
 
-        /// Set initial next id.
-        participants_[addr]->call("SET_NEXT_ID", next_id);
-        std::cout << "init participant " << addr << ":" << port << std::endl;
+        /// The same next_id means the participant is defintely up-to-date
+        if (is_recovered && p_next_id == next_id_)
+            goto PARTICIPANT_UP_TO_DATE;
+
+        auto &records = r_manager_.records();
+        if (is_recovered && p_next_id + 1 == next_id_ && records.count(next_id_) && records[next_id_].status == RECORD_ABORT)
+            goto PARTICIPANT_UP_TO_DATE;
+
+        /// Needs a recovery.
+        throw std::exception();
     }
     catch (std::exception &err)
     {
@@ -141,6 +146,9 @@ void coordinator::init_participant(std::string const &ip, uint16_t port)
         std::cout << "remove participant: " << err.what() << std::endl;
         participants_.erase(addr);
     }
+
+PARTICIPANT_UP_TO_DATE:
+    return;
 }
 
 void coordinator::heartbeat_participants()
@@ -165,17 +173,13 @@ void coordinator::heartbeat_participants()
                 {
                     /// Add it back either because we've started the coordinator before the participants
                     /// or participant failure occured.
-                    if (init_participant_failed_)
-                    {
-                        std::cout << "reinit participant [" << addrs[i] << ":" << ports[i] << "]" << std::endl;
-                        init_participant(addrs[i], ports[i]);
-                        if (!participants_.empty()) init_participant_failed_ = false;
-                    }
-                    else if (recover_participant(client))
+                    if (recover_participant(client))
                     {
                         participants_[addr] = std::unique_ptr<rpc::client>{ new rpc::client{addrs[i], ports[i]} };
                         if (participants_.size() == conf_.participant_addrs.size())
                             del_keys_.clear();
+
+                        handle_unfinished_records();
                     }
                 }
                 std::cout << "heartbeat: participants_.size() == " << participants_.size() << std::endl;
@@ -197,9 +201,29 @@ void coordinator::heartbeat_participants()
     }
 }
 
+/// NOTE: lock is acquired before entering this function.
 bool coordinator::recover_participant(rpc::client &client)
 {
     std::cout << "recover_participant\n";
+
+    /// If [is_recovered] is marked as false, this means the
+    /// coordinator is started with no prior requests before(or started freshly).
+    if (!is_recovered)
+    {
+        client.set_timeout(RPC_TIMEOUT);
+        client.call("SET_NEXT_ID", next_id_.fetch_add(0));
+        is_recovered = true;
+        return true;
+    }
+
+    /// If this participant is up-to-date as the coordinator, no recovery is needed.
+    auto p_next_id = client.call("NEXT_ID").as<std::uint32_t>();
+    if (p_next_id == next_id_)
+        return true;
+
+    auto &records = r_manager_.records();
+    if (p_next_id + 1 == next_id_ && records.count(p_next_id) && records[p_next_id].status == RECORD_UNRESOLVED)
+        return true;
 
     // Lock is already acquired.
     while (!participants_.empty())
@@ -401,11 +425,6 @@ PARTICIPANT_CHECK:
 void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client, 
                                         set_command cmd)
 {
-    cmd.set_id(next_id_.fetch_add(1));
-
-    /// Persist the request info.
-    r_manager_.log({RECORD_UNRESOLVED, cmd.id(), next_id_});
-
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
     if (participants_.empty())
@@ -415,6 +434,12 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
         send_error(client);
         return;
     }
+
+    /// NOTE: If current participants_ is empty, do not increment next_id_.
+    cmd.set_id(next_id_.fetch_add(1));
+
+    /// Persist the request info.
+    r_manager_.log({ RECORD_UNRESOLVED, cmd.id(), next_id_ });
 
     /// PREPARE
     bool prepare_ok = true;
@@ -445,7 +470,6 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
     if (participants_.empty())
     {
         /// Since all participant is dead, no abort rpc is needed to make.
-        r_manager_.log({ RECORD_ABORT_DONE, cmd.id(), next_id_ });
         send_error(client);
         return;
     }
@@ -466,8 +490,6 @@ void coordinator::handle_db_set_request(std::shared_ptr<tcp_client> client,
 void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client, 
                                         del_command cmd)
 {
-    cmd.set_id(next_id_.fetch_add(1));
-
     /// Acquire lock.
     std::unique_lock<std::mutex> lock(participants_mutex_);
     if (participants_.empty())
@@ -477,6 +499,9 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
         send_error(client);
         return;
     }
+
+    cmd.set_id(next_id_.fetch_add(1));
+    r_manager_.log({ RECORD_UNRESOLVED, cmd.id(), next_id_ });
 
     /// PREPARE
     bool prepare_ok = true;
@@ -527,6 +552,7 @@ void coordinator::handle_db_del_request(std::shared_ptr<tcp_client> client,
         participants_cond_.notify_all();
 }
 
+/// NOTE: lock is acquired before entering this function.
 void coordinator::commit_db_request(std::shared_ptr<tcp_client> client, 
                                     std::uint32_t id, 
                                     bool &participant_dead) {
@@ -560,14 +586,16 @@ void coordinator::commit_db_request(std::shared_ptr<tcp_client> client,
         iter++;
     }
 
-    /// Log done info.
-    r_manager_.log({ RECORD_COMMIT_DONE, id, next_id_ });
+    /// Log done info only if at least one participant has it committed.
+    if (!participants_.empty())
+        r_manager_.log({ RECORD_COMMIT_DONE, id, next_id_ });
     
     /// Client is nullptr when it is called from recovery().
     if (client != nullptr)
         send_result(client, ret, nullptr);
 }
 
+/// NOTE: lock is acquired before entering this function.
 void coordinator::abort_db_request(std::shared_ptr<tcp_client> client, 
                                    std::uint32_t id, 
                                    bool &participant_dead) 
@@ -595,7 +623,9 @@ void coordinator::abort_db_request(std::shared_ptr<tcp_client> client,
         iter++;
     }
 
-    r_manager_.log({ RECORD_ABORT_DONE, id, next_id_ });
+    /// Log this info only if at least one participant has this message.
+    if (!participants_.empty())
+        r_manager_.log({ RECORD_ABORT_DONE, id, next_id_ });
 
     /// client might be null when it comes from recovery.
     if (client != nullptr)

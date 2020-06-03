@@ -66,10 +66,16 @@ struct participant::prepare_set_t {
     {
         try {
             std::lock_guard<std::mutex> lock(p_.db_request_mutex_);
+            /// Log record and cache it.
+            /// NOTE: always log the command itself first. This can ensure that if we have a
+            /// record, we can find the corresponding command. Not vice versa.
+            p_.r_manager_.log(&set_cmd);
+
             std::unique_ptr<command> cmd{ new set_command{std::move(set_cmd)} };
-            std::cout << "PREPARE SET " << cmd->id() << std::endl;
+            p_.r_manager_.log({ RECORD_PREPARED, cmd->id(), p_.next_id_.fetch_add(0) });
             p_.db_requests_.insert(std::move(cmd));
 
+            // std::cout << "PREPARE SET " << cmd->id()/* id is not moved. */ << std::endl;
             return true;
         } catch (std::exception &e) {
             // LOG.
@@ -91,11 +97,16 @@ struct participant::prepare_del_t {
     {
         try {
             std::lock_guard<std::mutex> lock(p_.db_request_mutex_);
-            std::unique_ptr<command> cmd{ new del_command(std::move(del_cmd)) };
 
+            /// Log record and cache it.
+            /// NOTE: always log the command itself first. This can ensure that if we have a
+            /// record, we can find the corresponding command. Not vice versa.
+            p_.r_manager_.log(&del_cmd);
+            std::unique_ptr<command> cmd{ new del_command(std::move(del_cmd)) };
+            p_.r_manager_.log({ RECORD_PREPARED, cmd->id(), p_.next_id_.fetch_add(0) });
             p_.db_requests_.insert(std::move(cmd));
 
-            std::cout << "PREPARE DEL \n";
+            // std::cout << "PREPARE DEL " << cmd->id()/* id is not moved. */ << std::endl;
             return true;
         } catch (std::exception &e) {
             // LOG.
@@ -128,26 +139,33 @@ struct participant::commit_handler_t {
         if (p_.next_id_ > id)
             return "";
 
+        /// If this happens, then there's a bug in coordinator class.
         if (p_.next_id_ < id)
-            __SERVER_THROW("inconsistent state");
+            __SERVER_THROW("the coordinator has not call RECOVER!");
 
         // Handle normal cases.
         auto iter = p_.db_requests_.begin();
         if (iter->get()->id() != p_.next_id_)
-            /// Coordinator's malfunctioning.
-            __SERVER_THROW("inconsistent state");
+            /// If this happens, then there's a bug in coordinator class.
+            __SERVER_THROW("the coordinator has sent multiple PREPARE!");
 
         // Dispatching.
         auto handler = dispatchers[iter->get()->type];
         if (!handler)
             __SERVER_THROW("unrecognizable command");
 
+        /// Log the COMMIT record.
+        /// This is means the participant can recover itself after it dies before
+        /// actually applying the command to the DB. As a result, this can prevent a
+        /// RECOVERY RPC from the coordinator if this participant is up-to-date.
+        p_.r_manager_.log({ RECORD_COMMIT, id, p_.next_id_.fetch_add(1) });
+        /// Apply the command.
         std::string ret = handler(iter->get());
-        
+        /// Log the COMMIT_DONE record.
+        p_.r_manager_.log({ RECORD_COMMIT_DONE, id, p_.next_id_.fetch_add(0) });
+
         /// Update bookkeeping info.
         p_.db_requests_.erase(p_.db_requests_.begin());
-        p_.next_id_.fetch_add(1);
-
         p_.db_request_cond_.notify_all();
         return ret;
     }
@@ -220,19 +238,31 @@ struct participant::abort_handler_t {
     {
         std::unique_lock<std::mutex> lock(p_.db_request_mutex_);
 
-        std::cout << "ABORT\n";
-        /// This request has been seen before.
-        if (p_.next_id_ > id)
+        /// We can skip RECORD_ABORT because the request itself hasn't applied yet.
+        p_.r_manager_.log({ RECORD_ABORT_DONE, id, p_.next_id_.fetch_add(0) + 1 });
+        std::cout << "ABORT " << id << std::endl;
+        
+        /// This is actually a bit tricky:
+        /// if p_.next_id_ < id
+        ///     this must be the case that the coordinator has received a request from client,
+        ///     and died before it was able to send the request to this participant. The next time
+        ///     the coordinator comes into power, it'll simply abort RECORD_UNRESOLVED request.
+        /// if p_.next_id_ > id
+        ///     this means the request has been resolved previously. This participant must have seen
+        ///     this request before if it is alive all the time. Or it not, this participant must have
+        ///     been RECOVERED. So in either case, this participant can simply return true.
+        if (p_.next_id_ != id)
+        {
+            /// Remember to always update the p_.next_id_
+            if (id > p_.next_id_)   p_.next_id_ = id + 1;
             return true;
-
-        /// Same as commit.
-        if (p_.next_id_ < id)
-            __SERVER_THROW("inconsistent state");
-            // p_.db_request_cond_.wait_for(lock, std::chrono::seconds{10}, [&]() { return p_.next_id_ == id; });
-
+        }
 
         /// Upate bookkeeping info.
-        p_.db_requests_.erase(p_.db_requests_.begin());
+        /// NOTE: even if there next_id matches, there could still be a possiblity that this participant
+        /// has not received that command.
+        if (!p_.db_requests_.empty())
+            p_.db_requests_.erase(p_.db_requests_.begin());
         p_.next_id_.fetch_add(1);
 
         p_.db_request_cond_.notify_all();
@@ -377,6 +407,7 @@ struct participant::recover_t {
 participant::participant(participant_configuration &&conf)
     : conf_(std::move(conf))
     , svr_(conf_.addr, conf_.port)
+    , r_manager_("participant_" + conf_.addr + ":" + std::to_string(conf_.port) + ".log")
     , get_handler_(new participant::get_handler_t(*this))
     , prepare_set_(new participant::prepare_set_t(*this))
     , prepare_del_(new participant::prepare_del_t(*this))
@@ -414,6 +445,9 @@ participant::participant(participant_configuration &&conf)
     svr_.bind("HEARTBEAT", *heartbeat_);
     svr_.bind("GET_SNAPSHOT", *get_snapshot_);
     svr_.bind("RECOVER", *recover_);
+
+    /// Initialization.
+    recovery();
 }
 
 participant::~participant()
@@ -447,6 +481,45 @@ void participant::async_start()
 
     is_started_ = true;
     svr_.async_run(conf_.num_workers);
+}
+
+void participant::recovery()
+{
+    auto &cmds = r_manager_.cmds();
+    auto &records = r_manager_.records();
+
+    std::unique_lock<std::mutex> lock(db_request_mutex_);
+    for (auto &p : records)
+    {
+        switch (p.second.status)
+        {
+        case RECORD_COMMIT: {
+            db_requests_.insert(std::move(cmds[p.second.id]));
+            next_id_ = p.second.id;
+            /// NOTE: duplicate records is idempotent.
+            (*commit_handler_)(next_id_);
+            break;
+        }
+        case RECORD_PREPARED: {
+            /// NOTE: this can only happen either:
+            ///     1. The participant died right before receiving COMMIT/ABORT
+            ///     2. The coordinator died right before sending COMMIT/ABORT or resolving the request.
+            db_requests_.insert(std::move(cmds[p.second.id]));
+            next_id_ = p.second.id;
+            /// Wait for coordinator.
+            break;
+        }
+        default:
+            __SERVER_THROW("participant recovery failed");
+        }
+    }
+
+    /// Initialization.
+    if (next_id_ == 0)
+        next_id_ = r_manager_.next_id();
+
+    cmds.clear();
+    records.clear();
 }
 
 }    // namespace cdb

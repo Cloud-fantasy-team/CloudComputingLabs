@@ -47,6 +47,11 @@ private:
     /// the dead participants indefinitely.
     void heartbeat_participants();
 
+    /// Basically, this function will be called when:
+    ///     1. the coordinator just recovered from failure.
+    ///     2. the coordinator detects that a participant re-appeared.
+    void handle_unfinished_records();
+
     /// Called by callback workers of [svr] whenever a new
     /// client connection arrives.
     void handle_new_client(std::shared_ptr<tcp_client> client);
@@ -109,14 +114,8 @@ private:
     /// Flag indicates whether coordinator is started.
     std::atomic<bool> is_started_ = ATOMIC_VAR_INIT(false);
 
-    /// If the coordinator first comes into power and no participant has been started yet,
-    /// this flag will be set to true. Such that no matter in what order the operator starts
-    /// the system, the operation will succeed if at least one participant and the coordinator
-    /// itself are started.
-    std::atomic<bool> init_participant_failed_ = ATOMIC_VAR_INIT(false);
-
-    /// Flag indicate whether the coordinator needs a recovery.
-    std::atomic<bool> need_recovery = ATOMIC_VAR_INIT(false);
+    /// Flag indicates wether this coordinator is freshly restarted.
+    std::atomic<bool> is_recovered = ATOMIC_VAR_INIT(true);
 
     /// Only used when async_start() is called.
     std::thread async_heartbeat_;

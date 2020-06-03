@@ -20,7 +20,7 @@ void parse(cdb::record_manager &manager)
 
 int main(int argc, char **argv)
 {
-    cdb::record_manager manager("test.log");
+    cdb::record_manager manager("coordinator.log");
 
     bool _log, _parse;
     Flags flags;

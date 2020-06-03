@@ -13,6 +13,7 @@
 #include <mutex>
 #include "leveldb/db.h"
 #include "rpc/server.h"
+#include "record.hpp"
 #include "configuration.hpp"
 
 namespace cdb {
@@ -42,6 +43,10 @@ public:
     static const std::string update_ok_string;
 
 private:
+    /// Self recovery. This is not the same the the RECOVERY RPC made by the
+    /// coordinator, which is compulsory.
+    void recovery();
+
     /// RPC handler types.
     struct get_handler_t;
     struct prepare_set_t;
@@ -79,6 +84,9 @@ private:
 
     /// The actual server for responding RPCs.
     rpc::server svr_;
+
+    /// Used to log.
+    record_manager r_manager_;
 
     /// The actual handlers.
     get_handler_t *get_handler_;

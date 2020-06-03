@@ -41,7 +41,7 @@ void swap(get_command &a, get_command &b)
 }
 
 /// GETTER.
-std::vector<std::string> get_command::args()
+std::vector<std::string> get_command::args() const
 {
     return std::vector<std::string>{key_};
 }
@@ -79,8 +79,8 @@ set_command &set_command::operator=(set_command &&cmd)
     return *this;
 }
 
-/// SETTER.
-std::vector<std::string> set_command::args()
+/// GETTER.
+std::vector<std::string> set_command::args() const
 {
     return std::vector<std::string>{key_, value_};
 }
@@ -127,7 +127,7 @@ del_command &del_command::operator=(del_command &&cmd)
 }
 
 /// GETTER.
-std::vector<std::string> del_command::args()
+std::vector<std::string> del_command::args() const
 {
     return keys_;
 }
